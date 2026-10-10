@@ -1,7 +1,6 @@
-const knex = require('knex');
-
 exports.up = async function (knex) {
     // Create the `users` table
+    if (await knex.schema.hasTable('users')) return;
     await knex.schema.createTable('users', (table) => {
         table.increments('id').primary(); // Auto-incrementing ID
         table.string('name').notNullable();

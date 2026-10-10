@@ -1,22 +1,21 @@
 /**
+ * Removes old columns from `orders`.
+ * knex runs migrations in alphabetical order, so on a fresh install this file runs before
+ * `orders_table.js`. It only drops what actually exists.
  * @param { import("knex").Knex } knex
- * @returns { Promise<void> }
  */
-exports.up = function(knex) {
-    return knex.schema.alterTable('orders', function(table) {
-        table.dropColumn('ref_no');
-        table.dropColumn('pos_shop');
-        table.dropColumn('receipt_number');
-        table.dropColumn('customer_id');
-    });
+exports.up = async function(knex) {
+    if (!(await knex.schema.hasTable('orders'))) return;
+    for (const column of ['ref_no', 'pos_shop', 'receipt_number', 'customer_id']) {
+        if (await knex.schema.hasColumn('orders', column)) {
+            await knex.schema.alterTable('orders', table => table.dropColumn(column));
+        }
+    }
 };
 
-/**
- * @param { import("knex").Knex } knex
- * @returns { Promise<void> }
- */
-exports.down = function(knex) {
-    return knex.schema.alterTable('orders', function(table) {
+exports.down = async function(knex) {
+    if (!(await knex.schema.hasTable('orders'))) return;
+    await knex.schema.alterTable('orders', function(table) {
         table.string('ref_no');
         table.string('pos_shop');
         table.string('receipt_number');

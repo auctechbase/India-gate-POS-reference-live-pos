@@ -6,15 +6,16 @@ const path = require('path');
 const fs = require('fs')
 
 const fetchuser = require('../middlewares/loggedIn');
+const config = require('../config');
+const { removeStored } = require('../utils/images');
 const sharp = require("sharp");
 
-let error = { status : false, message:'Something went wrong!' }
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '../tmp/temp')); // Directory where files will be stored
+        cb(null, path.join(config.tmpDir, 'temp')); // Directory where files will be stored
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname)); // Save file with unique name
+        cb(null, Date.now() + '.webp'); // Save file with unique name
     }
 })
 
@@ -40,13 +41,12 @@ router.get('/', async (req,res) => {
         return res.json({status:true, notes });
     } catch (e) {
         console.log("exception occured: ",e)
-        error.message = e.message
-        return res.status(400).json(error)        
+        return res.status(400).json({ status: false, message: e.message })        
     }
 });
 
 // Route 3 : Get logged in user details - login required
-router.post('/create', async(req, res) => {
+router.post('/create', fetchuser, async(req, res) => {
     upload(req, res, async function (err) {
         if (err instanceof multer.MulterError) {
           return res.status(500).json({ error: 'File too large. Max size is 2MB.' });
@@ -60,7 +60,7 @@ router.post('/create', async(req, res) => {
     
         try {
           const { filename, path: tempPath } = req.file;
-          const outputFile = path.join(__dirname, '../tmp/notes', filename);
+          const outputFile = path.join(config.tmpDir, 'notes', filename);
     
           // Convert and save as webp
           await sharp(tempPath)
@@ -90,11 +90,7 @@ router.post('/create', async(req, res) => {
 router.get('/remove/:id', fetchuser, async(req, res) =>{
     try { 
         const note = await Note.query().findById(req.params.id);
-        try {
-            if(fs.existsSync(path.join(__dirname, '../tmp/'+note.image))){
-                fs.unlinkSync(path.join(__dirname, '../tmp/'+note.image))
-            }
-        } catch (er) {}
+        if (note) removeStored(note.image);
         const noteDeleted = await Note.query().deleteById(req.params.id);
         if(noteDeleted) {
             return res.json({status:true, noteDeleted}); 
@@ -102,8 +98,7 @@ router.get('/remove/:id', fetchuser, async(req, res) =>{
             return res.json({status:false, noteDeleted}); 
         }
     } catch (e) {
-        error.message = e.message
-        return res.status(500).json(error)     
+        return res.status(500).json({ status: false, message: e.message })     
     }
 }); 
 

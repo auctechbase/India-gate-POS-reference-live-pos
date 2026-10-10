@@ -1,35 +1,27 @@
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
+const axios = require('axios');
 const { Model } = require('objection');
 const Knex = require('knex');
-const path = require('path');
+const config = require('./config');
+const fetchuser = require('./middlewares/loggedIn');
 
+// The one and only database connection.
 const knex = Knex({
-  client: 'sqlite3',
-  connection: {
-    filename: path.join(__dirname, 'database/db.sqlite'),
-  },
-  useNullAsDefault: true,
+    client: 'sqlite3',
+    connection: { filename: config.dbPath },
+    useNullAsDefault: true,
 });
-
 Model.knex(knex);
 
 const app = express();
-const port = 5100;
-const buildPath = path.join(__dirname, 'client/build');
-app.use(cors());
-app.use(express.json());
-app.use('/images', express.static(path.join(__dirname, 'tmp')));
-app.use(express.static(buildPath))
-
-const db = new sqlite3.Database('./database/db.sqlite', (err) => {
-    if (err) {
-        console.error('Error opening database', err.message);
-    } else {
-        console.log('Connected to SQLite database');
-    }
-});
+// Only the app itself (http://localhost:5100) may call the API from a browser.
+app.use(cors({ origin: [`http://localhost:${config.port}`, `http://127.0.0.1:${config.port}`] }));
+app.use(express.json({ limit: '5mb' }));
+app.use('/images', express.static(config.tmpDir));
+app.use(express.static(config.buildPath))
 
 app.use("/auth", require("./routes/auth"));
 app.use("/products", require("./routes/products"));
@@ -40,115 +32,85 @@ app.use("/pos", require("./routes/pos"));
 app.use("/notes", require("./routes/notes"));
 app.use("/config", require("./routes/config"));
 
-app.get('/install-update', async(req, res)=> {
-    try {
-        const fs = require('fs');
-        const axios = require('axios')
-        const url = 'https://pos.dftech.in/updates/download';
-        const outputFolder = path.join( __dirname, './tmp' );
-        const outputPath = path.join( outputFolder, 'update.zip' );
-        // Download and save file
-        const {data} = await axios({ method: 'GET', url, responseType: 'stream' })
-        const writer = fs.createWriteStream(outputPath)
-        data.pipe(writer)
-        writer.on('finish', async () => {
-            const data = await extractZip(outputPath, path.join(__dirname,'client'))
-            fs.unlinkSync(outputPath)
-            if(!data.status) {
-                return res.json(data);
-            }
-            return res.json({status:true, message: 'UI update installed!'});
-        })
-        writer.on('error', () => {
-            return res.json({status:false, message: 'Failed downloading update!'});
-        })
-
-    } catch (error) {
-        return res.json({status:false, message: error.message});
-    }
-})
-
-app.get(`/install-backend-update`, async(req,res) => {
-
-    let extractPath
-    try {
-        const fs = require('fs')
-        const axios = require('axios')
-        const url = 'https://pos.dftech.in/backend-updates/download'
-        const outputFolder = path.join(__dirname, './tmp')
-        const outputPath = path.join(outputFolder, 'main.zip')
-
-        const {data} = await axios({
-            method: 'GET',
-            url,
-            responseType: 'stream',
-        })
+async function downloadAndExtract(url, zipName, destination) {
+    const outputPath = path.join(config.tmpDir, zipName);
+    const { data } = await axios({ method: 'GET', url, responseType: 'stream', timeout: 60000 });
+    await new Promise((resolve, reject) => {
         const writer = fs.createWriteStream(outputPath);
         data.pipe(writer);
-        writer.on('finish', async() => {
-            const data = await extractZip(outputPath, path.join( __dirname, '../'))
-            fs.unlinkSync(outputPath)
-            if(!data.status) {
-                return res.json(data);
-            }
-            return res.json({ status:true, message:"UX Updates installed!"})
-        });
-        writer.on('error', err => {
-            return res.json({status:false, message:"Updates installation failed!", fileWritingReason: err.message })
-        });
-
-    } catch (er) {
-        return res.json({ status:false, message: er.message, pathAtouter:extractPath, cpath: __dirname })
-    }
-})
-
-async function extractZip(source, destination) {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+    });
     try {
         const AdmZip = require('adm-zip');
-        const zip = new AdmZip(source);
-        zip.extractAllTo(destination, true); 
-        return { status: true, message: "Update finished!" };
-    } catch (error) {
-        if (error.message.includes('Cannot find module')) {
-            await runCommand(`npm install --prefix ${__dirname} adm-zip`); 
-            return { status: false, relaunch:true, message: "Module installed, please restart." };
-        }
-        return { status: false, message: error.message };
+        new AdmZip(outputPath).extractAllTo(destination, true);
+    } finally {
+        fs.promises.unlink(outputPath).catch(() => {});
     }
 }
 
-
-async function runCommand(command) {
-    const { exec } = require('child_process');
-    const util = require('util');
-    const execPromise = util.promisify(exec);
+// NOTE: these updates are downloaded without any signature check. They are only reachable
+// from this computer now (see config.host); replacing them with electron-updater and signed
+// builds is still to do.
+app.get('/install-update', fetchuser.optional, async (req, res) => {
     try {
-        const { stdout, stderr } = await execPromise(command);
-        if (stderr) {
-            return {output:`⚠️ Command executed with warnings: ${stderr}`};
-        }        
-        return {output:`✅ Command successful:\n${stdout}`};
-
-    } catch (error) { 
-        return {output:`❌ Command failed: ${error.message}`};
+        await downloadAndExtract(`${config.cloudUrl}/updates/download`, 'update.zip', path.join(config.rootDir, 'client'));
+        return res.json({ status: true, message: 'UI update installed!' });
+    } catch (error) {
+        return res.json({ status: false, message: `Failed downloading update! ${error.message}` });
     }
+})
+
+app.get(`/install-backend-update`, fetchuser.optional, async (req, res) => {
+    try {
+        await downloadAndExtract(`${config.cloudUrl}/backend-updates/download`, 'main.zip', path.join(config.rootDir, '../'));
+        return res.json({ status: true, message: "UX Updates installed!" })
+    } catch (error) {
+        return res.json({ status: false, message: `Updates installation failed! ${error.message}` })
+    }
+})
+
+// Any error a route didn't handle ends up here instead of crashing or hanging the request.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+    console.error(err);
+    res.status(err.status || 500).json({ status: false, message: err.message || 'Something went wrong!' });
+});
+
+async function migrate() {
+    // Before, migrations only ran when a request failed with a "column" error.
+    await knex.migrate.latest({
+        directory: config.migrationsDir,
+        tableName: 'knex_migrations',
+        disableMigrationsListValidation: true,
+    });
 }
 
 let server
-function start(){
-  server = app.listen(port)
-  server.on("error", (err) => {
-      if (err.code === "EADDRINUSE") {
-        console.error(`❌ Port ${port} is already in use.`);
-        process.exit(1); // Exit the process
-      } else {
-        console.error("Server error:", err);
-      }
-});
+async function start() {
+    try {
+        await migrate();
+    } catch (err) {
+        console.error('Database migration failed:', err);
+    }
+    return new Promise((resolve) => {
+        server = app.listen(config.port, config.host, () => resolve(server));
+        server.on("error", (err) => {
+            if (err.code === "EADDRINUSE") {
+                console.error(`❌ Port ${config.port} is already in use.`);
+                process.exit(1);
+            } else {
+                console.error("Server error:", err);
+            }
+        });
+    });
 }
 
-function stop(){
-  server.close()
+function stop() {
+    if (server) server.close()
+    return knex.destroy();
 }
 
-module.exports = {start, stop }
+if (require.main === module) start();
+
+module.exports = { start, stop, app, knex }

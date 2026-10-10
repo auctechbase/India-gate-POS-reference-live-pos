@@ -1,112 +1,104 @@
 const express = require("express");
-const User = require('../models/user');
-const Product = require('../models/Product');
+const User = require('../models/User');
 const Currency = require('../models/Currency');
 const router = express.Router();
-const { body, validationResult }=require('express-validator')
-const bcrypt= require('bcrypt');
-const jwt= require('jsonwebtoken');
-const fetchuser= require('../middlewares/loggedIn');
-const JWT_SECRET = 'whateverItWas';
+const { body, validationResult } = require('express-validator')
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const fetchuser = require('../middlewares/loggedIn');
+const config = require('../config');
 
-let error = { status : false, message:'Something went wrong!' }
-let output = { status : true }
+const CURRENCY_SYMBOLS = { euro: '€ ', eur: '€ ', inr: '₹ ', rupee: '₹ ' };
 
-// Create a user
-router.post('/signup',[
-    body('name').isLength({min:5}),
-    body('username').isLength({min:5}),
-    body('password').isLength({min:6}),
-],async (req,res) => {
-    try 
-    {
-        const errors=validationResult(req);
-         
-        if(!errors.isEmpty()) return res.status(400).res.json({errors : errors.array()});
-         
-        let user = await User.query().where('email', req.body.email);
-        if(user){
-            return res.status(400).json({...error, key:'email', message:'A user with that email already exists!'})
-        } 
-        const salt = await bcrypt.genSalt(8);
-        const secPass = await bcrypt.hash(req.body.password, salt)
-        // Finally create one
-        user = User.query().insert({
-            name: req.body.name,
-            email : req.body.email.toLowerCase(),
-            password : secPass
-        });
+// Never send the password hash to the browser.
+const publicUser = (user) => {
+    if (!user) return user;
+    const { password, remember_token, ...rest } = user;
+    return rest;
+};
 
-        output.message = 'Account created successfully!'
-        return res.json(output);
-        
-    } catch (e) {
-        error.message = e.message
-        return res.status(500).json(error)        
-    }
-});
-
-// Route 3 : Authenticate the user
-router.post('/login',[ 
-    body('email','Invalid credentials!').isLength({min:5}),
-    body('password','Password cannot be blank!').exists(),
-],async (req,res) => {
+// Create a user.
+// - When the database has no users yet, anyone may create the first account, which becomes admin.
+// - After that only a logged-in admin may create users.
+router.post('/signup', [
+    fetchuser.optional,
+    body('name').trim().isLength({ min: 3 }),
+    body('email').trim().isEmail(),
+    body('password').isLength({ min: 6 }),
+], async (req, res) => {
     try {
-        const errors=validationResult(req);
-        // Iff ? its finished : can go
-        if(!errors.isEmpty()){
-            return res.status(400).json({errors : errors.array()})
-        } 
-        let user = await User.query().where('email', req.body.email).first();
-        if(!user){
-            error.message = "User not found, please create an account to start!"
-            return res.status(400).json(error)
-        }
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) return res.status(400).json({ status: false, errors: errors.array() });
 
-        const compared = await bcrypt.compare(req.body.password, user.password)
-        if(!compared){
-            error.message = "Incorrect Password!"
-            return res.status(400).json(error)
-        }
-        let currency = await Currency.query().where('status', true).first();
-        if(currency) {
-            currency = (currency.name).toLowerCase() == 'euro'? '€ ': '₹ ';
-        }
-        
-        const payload = {
-            user : {
-                id : user.id
+        const { count } = await User.query().count('id as count').first();
+        const isFirstUser = Number(count) === 0;
+        if (!isFirstUser) {
+            const me = req.user && await User.query().findById(req.user.id);
+            if (!me || me.type !== 'admin') {
+                return res.status(403).json({ status: false, message: 'Only an admin can create users!' });
             }
         }
-        const authToken = jwt.sign(payload, JWT_SECRET);
-        return res.json({status:true, authToken, user, currency});
-        
+
+        const email = req.body.email.trim().toLowerCase();
+        const existing = await User.query().whereRaw('lower(email) = ?', [email]).first();
+        if (existing) {
+            return res.status(400).json({ status: false, key: 'email', message: 'A user with that email already exists!' });
+        }
+
+        const password = await bcrypt.hash(req.body.password, 10);
+        const type = isFirstUser ? 'admin' : (req.body.type === 'admin' ? 'admin' : 'cashier');
+        const user = await User.query().insertAndFetch({
+            name: req.body.name.trim(),
+            email,
+            password,
+            type,
+            status: true,
+        });
+
+        return res.json({ status: true, message: 'Account created successfully!', user: publicUser(user) });
     } catch (e) {
-        console.log("exception occured: ",e)
-        error.message = e.message
-        return res.status(400).json(error)        
+        return res.status(500).json({ status: false, message: e.message });
     }
 });
 
-// Route 3 : Get logged in user details - login required
-router.get('/getuser', fetchuser, async(req, res) =>{
+// Authenticate the user
+router.post('/login', [
+    body('email', 'Invalid credentials!').isLength({ min: 5 }),
+    body('password', 'Password cannot be blank!').exists(),
+], async (req, res) => {
     try {
-        const userid = req.body.id; 
-        const user = await User.query().findById(userid);
-        return res.json(user) 
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ status: false, errors: errors.array() })
+        }
+        const user = await User.query().whereRaw('lower(email) = ?', [String(req.body.email).trim().toLowerCase()]).first();
+        // Same message for unknown email and wrong password: don't reveal which emails exist.
+        if (!user || !(await bcrypt.compare(String(req.body.password), user.password))) {
+            return res.status(400).json({ status: false, message: 'Invalid email or password!' })
+        }
+        let currency = await Currency.query().where('status', true).first();
+        if (currency) {
+            currency = CURRENCY_SYMBOLS[String(currency.name).toLowerCase()] ?? `${currency.unit || currency.name} `;
+        }
+
+        const payload = { user: { id: user.id, type: user.type } };
+        const options = config.jwtExpiresIn ? { expiresIn: config.jwtExpiresIn } : {};
+        const authToken = jwt.sign(payload, config.jwtSecret, options);
+        return res.json({ status: true, authToken, user: publicUser(user), currency });
     } catch (e) {
-        error.message = e.message
-        return res.status(500).json(error)     
+        console.log("exception occured: ", e)
+        return res.status(400).json({ status: false, message: e.message })
     }
+});
+
+// Get logged in user details - login required
+router.get('/getuser', fetchuser, async (req, res) => {
+    try {
+        const user = await User.query().findById(req.user.id);
+        return res.json(publicUser(user))
+    } catch (e) {
+        return res.status(500).json({ status: false, message: e.message })
     }
-);
+});
 
-router.get("/seed", async(req,res)=> {
-    // const salt = await bcrypt.genSalt(8);
-    // const password = await bcrypt.hash('121212', salt);
-    // await Product.query().truncate();
-    // const created = await Currency.query().insert({ name:'euro', status:true })
-    return res.json({msg:'cleared'});
-})
-
-module.exports=router 
+module.exports = router

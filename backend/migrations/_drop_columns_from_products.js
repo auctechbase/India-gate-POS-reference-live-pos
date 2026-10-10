@@ -1,21 +1,16 @@
 /**
+ * Historical migration: it targets `orders` (not `products`) and the columns never existed there.
+ * Kept because existing installs have it recorded in knex_migrations; it is a no-op when the
+ * columns are missing.
  * @param { import("knex").Knex } knex
- * @returns { Promise<void> }
  */
-exports.up = function(knex) {
-    return knex.schema.alterTable('orders', function(table) {
-        table.dropColumn('type');
-        table.dropColumn('weight');
-    });
+exports.up = async function(knex) {
+    if (!(await knex.schema.hasTable('orders'))) return;
+    for (const column of ['type', 'weight']) {
+        if (await knex.schema.hasColumn('orders', column)) {
+            await knex.schema.alterTable('orders', table => table.dropColumn(column));
+        }
+    }
 };
 
-/**
- * @param { import("knex").Knex } knex
- * @returns { Promise<void> }
- */
-exports.down = function(knex) {
-    return knex.schema.alterTable('orders', function(table) {
-        table.string('type');
-        table.string('weight');
-    });
-};
+exports.down = async function() {};

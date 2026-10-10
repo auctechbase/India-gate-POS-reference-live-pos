@@ -3,6 +3,35 @@
 This is a review of the code as it is today plus a plan you can follow and code yourself.
 Every bug has a location (`file:line`), what the code **does now**, and what we **want** it to do.
 
+## Fix status
+
+Bugs fixed in place (folder structure not changed yet). Every fix keeps the API shape the
+compiled UI expects, because the React source is not in the repo.
+
+| Fixed | Still open (needs the UI source or a bigger change) |
+|---|---|
+| T1–T21 (T21: numbers are now parsed/compared as numbers; columns are still TEXT) | S3 unsigned zip updates (needs electron-updater + signed builds) |
+| S1, S2 (API only reachable from this computer), S4 (JWT secret rotated, cloud key moved to config), S5, S8, S10 | S6 app key in the URL, S9 GET for changes (the UI calls these URLs) |
+| B2, B3, B4, B5, B6 (partly: one query, sold line prices used), B7, B8, B9, B10, B11, B12, B13, B14, B15, B16, B17 (day-close, barcode label), B19, B20 | B1 server-side pricing, B18 integer cents, `order_items` table, Z-report numbering, category order as a setting |
+
+What changed for the shop after updating:
+- **Everyone has to log in once** (the old, public JWT secret was replaced). The UI clears its
+  local storage on 401, so the cloud **app key** has to be entered again too.
+- The API listens on `127.0.0.1` only. Set `POS_HOST=0.0.0.0` if another device must reach it.
+- Expected cash in the drawer now counts only the **cash** part of a payment.
+- A Z-report can be made once per register; after it, sales need a new "Day Opening".
+- Tax shown on receipts and reports is the tax **included** in the price (price × rate / (100 + rate)).
+- New install: the first `POST /auth/signup` creates the admin; after that only an admin can add users.
+
+### How the UI builds a sale (found by reading the compiled bundle)
+
+`sessionData.price[id]` is the **line total** (unit price × quantity, negative for a returned
+line), not the unit price. `modes.Cash` is the whole total; the real split is in `modes.Card` /
+`modes.Account`. `cashForDrawer` is the whole total even for card payments. The axios
+default `pos-token` header is read once at page load, so right after login axios calls that don't
+pass headers explicitly go out without a token, until the app is restarted. That's why some routes
+use `fetchuser.optional` instead of `fetchuser`.
+
 Contents
 
 1. [How the app works today (reverse-engineered)](#1-how-the-app-works-today)
@@ -398,10 +427,11 @@ cash part.
 `// card += Number(Card)` is commented out → for split payments
 `cash + card + account ≠ total`. The Z-report won't reconcile with the card terminal.
 
-**B5. Category totals ignore quantity.** `routes/orders.js:297`
-`sPrice?.[id] ?? product.price * QT[id]` — `*` binds before `??`, so when a sold price exists
-the result is **unit price, not price × qty**. Buying 5 rice bags counts as 1 in category sales.
-Want: `(sPrice?.[id] ?? product.price) * QT[id]`.
+**B5. Category totals wrong for products without a category and for quick items.**
+`price[id]` is already the line total (see "How the UI builds a sale"), so the category branch at
+`routes/orders.js:297` is right, but the "Others" branch multiplied the line total by the quantity
+**again**, and quick items added the whole `otherAmount` once per quick item.
+Want: always add the line total `price[id]`.
 
 **B6. Reports use today's product data, not what was sold.** `routes/orders.js:288, 304`
 Tax and "discounts" are computed from the **current** product price/tax. Change a price today →
@@ -411,13 +441,12 @@ unit_price, tax_rate, tax_amount, line_total) at sale time and build reports onl
 **B7. Tax is calculated wrong.** `routes/orders.js:308`
 - `tax/100 * price` treats the price as **tax-exclusive**; shelf prices in a shop are normally
   **tax-inclusive** → included tax = `price × rate / (100 + rate)`.
-- Not multiplied by quantity.
 - "Included Taxes" section prints the **rate** of the first product seen per type, not the
   amount (`:306`).
 
-**B8. Discounts/returns numbers are wrong.** `:310` discounts = `soldPrice − currentPrice`,
-summed per product (ignores qty, includes returns because returns are negative prices).
-`:326` returns = sum of negative **unit** prices (ignores qty). Returns are modelled as
+**B8. Discounts are wrong.** `:310` discounts = `lineTotal − currentUnitPrice` (should be
+`unitPrice × qty − lineTotal`), includes returns, and the report then shows 0 whenever there *is*
+a discount (`discounts < 0 ? 0.00`). Returns are modelled as
 "negative price" in the same sale, which is also how stock gets added back (`:105`).
 Want: an explicit `type: 'sale' | 'return'` per line and a separate refund flow.
 

@@ -18,6 +18,7 @@
     "electron": "^34.0.1",
     "express": "^4.21.2",
     "express-validator": "^7.2.1",
+    "form-data": "^4.0.6",
     "html-pdf": "^3.0.1",
     "http": "^0.0.1-security",
     "jsonwebtoken": "^9.0.2",

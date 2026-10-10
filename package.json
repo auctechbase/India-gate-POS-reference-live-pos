@@ -3,10 +3,11 @@
   "version": "1.0.1",
   "main": "main.js",
   "scripts": {
-    "start": "electron . && nodemon backend/server.js",
+    "start": "electron .",
     "build": "electron-packager . POS-ov --icon=pos.ico",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "backend": "node backend/server.js"
   },
   "repository": {},
   "build": {

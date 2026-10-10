@@ -1,7 +1,6 @@
-const knex = require('knex');
-
 exports.up = async function (knex) {
 
+    if (await knex.schema.hasTable('notes')) return;
     await knex.schema.createTable('notes', (table) => {
         table.increments('id').primary(); // Auto-incrementing ID
         table.string('image');
