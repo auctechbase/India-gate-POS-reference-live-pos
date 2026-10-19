@@ -31,6 +31,8 @@ app.use("/tax", require("./routes/tax"));
 app.use("/pos", require("./routes/pos"));
 app.use("/notes", require("./routes/notes"));
 app.use("/config", require("./routes/config"));
+app.use("/website", require("./routes/website"));
+app.use("/analytics", require("./routes/analytics"));
 
 async function downloadAndExtract(url, zipName, destination) {
     const outputPath = path.join(config.tmpDir, zipName);
@@ -49,10 +51,14 @@ async function downloadAndExtract(url, zipName, destination) {
     }
 }
 
-// NOTE: these updates are downloaded without any signature check. They are only reachable
-// from this computer now (see config.host); replacing them with electron-updater and signed
-// builds is still to do.
-app.get('/install-update', fetchuser.optional, async (req, res) => {
+// Remote updates from the vendor are disabled: they replaced the UI built from frontend/ and the
+// backend code with unsigned zips. Set POS_ALLOW_REMOTE_UPDATES=1 to turn them back on.
+const remoteUpdatesAllowed = (req, res, next) => {
+    if (process.env.POS_ALLOW_REMOTE_UPDATES === '1') return next();
+    return res.json({ status: false, message: 'Remote updates are disabled.' });
+};
+
+app.get('/install-update', remoteUpdatesAllowed, fetchuser.optional, async (req, res) => {
     try {
         await downloadAndExtract(`${config.cloudUrl}/updates/download`, 'update.zip', path.join(config.rootDir, 'client'));
         return res.json({ status: true, message: 'UI update installed!' });
@@ -61,7 +67,7 @@ app.get('/install-update', fetchuser.optional, async (req, res) => {
     }
 })
 
-app.get(`/install-backend-update`, fetchuser.optional, async (req, res) => {
+app.get(`/install-backend-update`, remoteUpdatesAllowed, fetchuser.optional, async (req, res) => {
     try {
         await downloadAndExtract(`${config.cloudUrl}/backend-updates/download`, 'main.zip', path.join(config.rootDir, '../'));
         return res.json({ status: true, message: "UX Updates installed!" })

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import TouchKeyboard from '../common/TouchKeyboard';
 import $ from "jquery";
 import { useDispatch, useSelector } from "react-redux";
 import { Form, Modal, ModalBody, ModalFooter, ModalHeader } from 'reactstrap'
@@ -10,7 +11,6 @@ import { preview } from "../../helpers/attachments";
 import labelImg from "../../asset/images/default.png";
 import { useSearch } from '../../contexts/SearchContext'
 import SearchBoard from "../pos/SearchBoard";
-import Keyboard from 'react-simple-keyboard';
 import 'select2';
 import 'select2/dist/css/select2.min.css';
 let listTable
@@ -30,7 +30,6 @@ const Products = () => {
     const {data:taxess, isSuccess:taxAaGaya} = useGetTaxesQuery();
     const { searchQuery, setSearchQuery ,focused, setFocused} = useSearch()
     const [ focusedField, setFocusedField ] = useState(null)
-    const [ layoutName, setLayout ] = useState(false);
     const [ rowData, setRowData ] = useState([]);
     const {currency, hasKeyboard, appKey } = useSelector( state=> state.auth );
     const [modal, setModal ] = useState(false);
@@ -41,35 +40,11 @@ const Products = () => {
     const [ taxes, setTaxes ] = useState([]);
     const [ uploadedSrc, setPlaceholder ] = useState('');
     const [ view, setView] = useState('list');
-    const [ scale, setScale ] = useState(localStorage.getItem('_keyboard_scale')??1)
     const changeProductField = e => setEditingProduct({ ...editingProduct, [e.target.name]: e.target.value });
 
-    const [ position, setPosition] = useState({ x: window.screen.availWidth/4, y: window.screen.availHeight / 1.85 });
-    const [ dragging, setDragging] = useState(false);
-    const [ offset, setOffset] = useState({ x: 0, y: 0 });
     
-    const handleMouseDown =  (e) => {
-        const clientX = e.touches?.[0]?.clientX || e.clientX;
-        const clientY = e.touches?.[0]?.clientY || e.clientY;
 
-        setDragging(true);
-        setOffset({
-            x: clientX - position.x,
-            y: clientY - position.y,
-        });
-    };
-
-    const handleMouseMove = (e) => {
-        if (!dragging) return;
-        const clientX = e.touches?.[0]?.clientX || e.clientX;
-        const clientY = e.touches?.[0]?.clientY || e.clientY;
-        setPosition({
-            x: clientX - offset.x,
-            y: clientY - offset.y,
-        });
-    };
     
-    const handleMouseUp = () => setDragging(false);
 
     const onChange =  e => setEditingProduct({...editingProduct, [focusedField]:e})
 
@@ -634,96 +609,14 @@ const Products = () => {
                             </ModalFooter> 
                         </Form>
                     </Modal>
-                    {focusedField && !hasKeyboard &&  <div className='mt-4 position-fixed w-50' style={{zIndex:9999, top:60 }}>
-                        <div
-                            style={{
-                                overflow: "hidden",
-                                position: "relative",
-                                touchAction: "none",
-                            }}
-                            onMouseMove={handleMouseMove}
-                            onTouchMove={handleMouseMove}
-                            onMouseUp={handleMouseUp}
-                            onTouchEnd={handleMouseUp}
-                        >
-                            <div
-                                style={{
-                                    position: "fixed",
-                                    top: `${position.y}px`,
-                                    left: `${position.x}px`,
-                                    cursor: dragging ? "grabbing" : "grab",
-                                    zIndex: 1000,
-                                    width:700,
-                                    transform: `scale(${scale})`,
-                                    resize:'both',
-                                    overflow:'auto',
-                                    touchAction: "none",
-                                    transformOrigin: "top center"
-                                }}
-                            >
-                                <div
-                                    onMouseDown={handleMouseDown}
-                                    onTouchStart={handleMouseDown}
-                                    style={{
-                                        background: "#444",
-                                        color: "#fff",
-                                        padding: 10,
-                                        cursor: "grab",
-                                        textAlign: "center",
-                                        touchAction: "none",
-                                        borderRadius: "8px 8px 0 0",
-                                    }}
-                                >
-                                    Hold To Drag 
-                                </div>
-                                    <Keyboard
-                                        onChange={onChange}
-                                        onKeyPress={(e) => {
-                                            if(e === "{lock}") setLayout((prev) => (prev === "default" ? "shift" : "default"))
-                                        }}
-                                        keyboardRef={(r) => (keyboardRef.current = r)}
-                                        layout={{
-                                            default: focusedField==='price' ? [
-                                                "1 2 3",
-                                                "4 5 6",
-                                                "7 8 9", 
-                                                "0 . {bksp}",
-                                            ]: [
-                                                "1 2 3 4 5 6 7 8 9 0",
-                                                "q w e r t y u i o p",
-                                                "{lock} a s d f g h j k l",
-                                                "z x c v b n m . {bksp}",
-                                                "{space}"
-                                            ],
-                                            shift: [
-                                                "1 2 3 4 5 6 7 8 9 0",
-                                                "Q W E R T Y U I O P",
-                                                "{lock} A S D F G H J K L",
-                                                "Z X C V B N M . {bksp}",
-                                                "{space}"
-                                            ]
-                                        }}
-                                        display={{
-                                            "{lock}":"Caps",
-                                            "{bksp}":focusedField==='price'? 'x':"Backspace",
-                                            "{space}":"Space"
-                                        }}
-                                        layoutName={layoutName}
-                                    />
-                                <div className='bg-white d-flex board-navs' style={{justifyContent:'space-between',padding:'5px 20px'}}>
-                                    <button className='btn btn-light btn-rounded' onClick={()=>{
-                                        setEditingProduct({...editingProduct,[focusedField]:''})
-                                        keyboardRef.current.clearInput()
-                                    }} style={{border:'1px solid gray'}}>CLEAR</button>
-                                    <button style={{border:'1px solid'}} className='btn btn-light btn-rounded' onClick={() => setScale(prev => Math.max(prev - 0.1, 0.5))}>-</button>
-                                    <span style={{placeContent:'center'}}> Size: {Math.round(scale * 100)}% </span>
-                                    <button style={{border:'1px solid'}} className='btn btn-light btn-rounded' onClick={() => setScale(prev => Math.min(prev + 0.1, 2))}>+</button>
-
-                                    <button onClick={()=>setFocusedField('')} className='btn btn-light btn-rounded' style={{border:'1px solid gray'}}>HIDE</button>
-                                </div>
-                        </div>
-                        </div>
-                    </div>}
+                    {focusedField && !hasKeyboard && <TouchKeyboard
+                        open
+                        value={editingProduct[focusedField]}
+                        onChange={onChange}
+                        layout={focusedField === 'price' ? 'decimal' : 'text'}
+                        label={{ name: 'Product name', price: 'Price', code: 'Barcode' }[focusedField] ?? focusedField}
+                        onClose={() => setFocusedField('')}
+                    />}
                 </div>
             </div>
         </div>

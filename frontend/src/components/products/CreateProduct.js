@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import Keyboard from "react-simple-keyboard";
+import TouchKeyboard from '../common/TouchKeyboard';
 import CreatableSelect from 'react-select/creatable'
 import { useDispatch, useSelector } from 'react-redux';
 import {Link, useNavigate} from 'react-router-dom';
@@ -11,7 +11,6 @@ import axios from 'axios';
 import { Warning } from '../../helpers/utils';
 import { commonApiSlice, useGetPosProductsQuery, useGetProductCategoriesQuery, useGetProductsQuery } from '../../features/centerSlice';
 import { Button } from '../layouts/Navbar';
-import { innerStyle } from '../../objects/keyboard/keyboardStyle';
 
 function CreateProduct() {
     const { currency, hasKeyboard }= useSelector(state => state.auth);
@@ -22,7 +21,6 @@ function CreateProduct() {
     const { refetch: refetchCat } = useGetProductCategoriesQuery()
     const [ taxes , setTaxes] = useState([])
     const [ focused, setFocused ] = useState(false);
-    const [ layoutName, setLayout ] = useState('default');
     const input = {borderRadius: 25};
     const dispatch = useDispatch();
     const [xls, noteFile] = useState(null);
@@ -153,26 +151,8 @@ function CreateProduct() {
         e.preventDefault();
         noteFile(e.target.files[0])
     }
-    const [position, setPosition] = useState({ x: window.screen.availWidth / 3, y: window.screen.availHeight / 3 })
-    const [dragging, setDragging] = useState(false)
-    const [offset, setOffset] = useState({ x: 0, y: 0 })
 
-    const handleMouseDown = (e) => {
-        setDragging(true);
-        setOffset({
-          x: e.clientX - position.x,
-          y: e.clientY - position.y,
-        });
-    };
 
-    const handleMouseMove = (e) => {
-        if (!dragging) return;
-        setPosition({
-            x: e.clientX - offset.x,
-            y: e.clientY - offset.y,
-        });
-    }
-    const handleMouseUp = () => setDragging(false);
 
     const onChange =  e => {
         setFields({...fields, [focused]:e})
@@ -183,16 +163,7 @@ function CreateProduct() {
         keyboardRef.current?.setInput(presetTxt);
     }, [presetTxt, focused]);
     
-    const [scale, setScale] = useState(localStorage.getItem('_keyboard_scale')??1); // Default scale (1 = 100%)
 
-    const decrease = () => {
-        localStorage.setItem('_keyboard_scale', Math.max(scale - 0.1, 0.5))
-        setScale(prev => Math.max(prev - 0.1, 0.5))
-    }
-    const increase = () => {
-        localStorage.setItem('_keyboard_scale', Math.min(JSON.parse(scale) + 0.1, 2))
-        setScale(prev => Math.min(JSON.parse(prev) + 0.1, 2))
-    }
     const [barcode, setBarcode] = useState('');
 
     useEffect(() => {
@@ -374,87 +345,14 @@ function CreateProduct() {
                 </div>
             </div>
         </div>
-        { focused && !hasKeyboard && <div className='mt-4 position-fixed w-50 v-keyboard' style={{zIndex:9999, top:60 }}>
-            <div
-                style={{
-                    overflow: "hidden",
-                    position: "relative",
-                    touchAction: "none",
-                }}
-                onMouseMove={handleMouseMove}
-                onTouchMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onTouchEnd={handleMouseUp}
-                >
-                <div
-                    style={{
-                        position: "fixed",
-                        top: `${position.y}px`,
-                        left: `${position.x}px`,
-                        cursor: dragging ? "grabbing" : "grab",
-                        zIndex: 1000,
-                        width: focused==='price'? 400: 700,
-                        touchAction: "none",
-                        transform: `scale(${scale})`, transformOrigin: "top center"
-                    }}
-                >
-                    <div
-                        onMouseDown={handleMouseDown}
-                        onTouchStart={handleMouseDown}
-                        style={innerStyle}
-                    >
-                        <Button text={<i className='fa fa-minus'/>} onClick={decrease} />
-                        <span> Hold To Drag </span>
-                        <Button text={<i className='fa fa-plus'/>} onClick={increase} />
-                    </div>
-                        <Keyboard
-                            onChange={onChange}
-                            onKeyPress={(e) => {
-                                if(e === "{lock}")
-                                {
-                                    setLayout((prev) => (prev === "default" ? "shift" : "default"))
-                                }
-                            }}
-                            keyboardRef={(r) => (keyboardRef.current = r)}
-                            layout={{
-                                default: focused==='price' ? [
-                                    "1 2 3",
-                                    "4 5 6", 
-                                    "7 8 9",
-                                    "0 . {bksp}"
-                                ]: [
-                                    "1 2 3 4 5 6 7 8 9 0",
-                                    "q w e r t y u i o p",
-                                    "{lock} a s d f g h j k l",
-                                    "z x c v b n m {bksp}",
-                                    "{space}"
-                                ],
-                                shift: [
-                                    "1 2 3 4 5 6 7 8 9 0",
-                                    "Q W E R T Y U I O P",
-                                    "{lock} A S D F G H J K L",
-                                    "Z X C V B N M {bksp}",
-                                    "{space}"
-                                ]
-                            }}
-                            display={{
-                                "{lock}":"Caps",
-                                "{bksp}": focused==='price'? 'x': "Backspace",
-                                "{space}":" "
-                            }}
-                            layoutName={layoutName}
-                        />
-                    <div className='bg-white d-flex board-navs' style={{justifyContent:'space-between',padding:'5px 20px'}}>
-                        <Button onClick={()=>{
-                            setFields({...fields,[focused]:''})
-                            keyboardRef.current.clearInput()
-                        }} text={'CLEAR'} />
-                        <button onClick={()=>setFocused('')} className='btn btn-light btn-rounded' style={{border:'1px solid gray'}}>HIDE</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        }
+        { focused && !hasKeyboard && <TouchKeyboard
+            open
+            value={fields[focused]}
+            onChange={onChange}
+            layout={focused === 'price' ? 'decimal' : 'text'}
+            label={{ name: 'Product name', price: 'Price', barcode: 'Barcode' }[focused] ?? focused}
+            onClose={() => setFocused('')}
+        />}
         </>
     );
 }

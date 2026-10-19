@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import TouchKeyboard from '../common/TouchKeyboard';
 import axios from 'axios';
-import Keyboard from "react-simple-keyboard";
 import { Link, useLocation, useNavigate, useParams} from 'react-router-dom';
 import profile from "../../asset/images/profile.png";
 import { useDispatch, useSelector } from 'react-redux';
@@ -62,10 +62,6 @@ function Navbar() {
     const params = useParams();
     const labelStyle = {fontSize:'0.8rem',padding:'0px 8px', borderRadius:12, background:'#ccbd67',color:'white', marginLeft:3}
     const { data } = useGetNotificationsQuery();
-    const [ position, setPosition ] = useState({x: window.screen.availWidth / 4, y: window.screen.availHeight / 2 });
-    const [ dragging, setDragging ] = useState(false);
-    const [ offset, setOffset ] = useState({  x: 0, y: 0  });
-    const [ layoutName, setLayout ] = useState('default');
     const [ order, setOrder ] = useState({});
     const showQT = (products) => {
         let total=0
@@ -82,33 +78,9 @@ function Navbar() {
     }
     const onChangeKey = input => setKey(input)
     const keyboardRef = useRef(null);
-    const [scale, setScale] = useState(localStorage.getItem('_keyboard_scale')??1.2); // Default scale (1 = 100%)
-    const decrease = () => {
-        localStorage.setItem('_keyboard_scale', Math.max(scale - 0.1, 0.5))
-        setScale(prev => Math.max(prev - 0.1, 0.5))
-    }
-    const increase = () => {
-        localStorage.setItem('_keyboard_scale', Math.min(JSON.parse(scale) + 0.1, 2))
-        setScale(prev => Math.min(JSON.parse(prev) + 0.1, 2))
-    }
 
-    const handleMouseDown = (e) => {
-        setDragging(true);
-        setOffset({
-            x: e.clientX - position.x,
-            y: e.clientY - position.y,
-        });
-    };
 
-    const handleMouseMove = (e) => {
-        if (!dragging) return;
-        setPosition({
-            x: e.clientX - offset.x,
-            y: e.clientY - offset.y,
-        });
-    }
 
-    const handleMouseUp = () => setDragging(false);
 
     const [full, setFull] = useState(true);
     const toggleScreen = e => {
@@ -127,40 +99,6 @@ function Navbar() {
         let now = !sale
         localStorage.setItem('_is_sale', now)
         setType(now)
-    }
-
-    const checkforUpdates = async e => {
-        e.preventDefault()
-        localStorage.setItem(`_last_location`, location.pathname);
-        try {
-            dispatch({ type:"LOADING" });
-            const {data} = await axios.get(`install-update`);
-            if(data.status) {
-                try {
-                    const {data:res} = await axios.get('install-backend-update')
-                    if(res.status) toast.success(res.message)
-                } catch (er) {
-                    console.log("failed installing backend.", er)
-                }
-                toast.success(data.message);
-                setTimeout(() => window?.electronAPI.relaunch(), 2000);
-            } else {
-                if(data.relaunch) {
-                    toast.success("Update downloaded, click again to install updates!");
-                    setTimeout(() => window?.electronAPI.relaunch(), 2000);
-                }else {
-                    toast.error(data.message);
-                }
-            }
-        } catch (error) {
-            
-            if (error.code === "ERR_NETWORK") {
-                toast.error("No internet connection!")
-            } else {
-                toast.error("Something went wrong!")
-            }
-        }
-        dispatch({ type:"STOP_LOADING" });
     }
 
     const removeNotification = e => {
@@ -700,10 +638,8 @@ function Navbar() {
                         {
                             window.electronAPI ?
                             <>
-                                <Link className="dropdown-item" to={"#"} onClick={checkforUpdates}>
-                                    <i className="dropdown-item-icon mdi mdi-update text-primary me-2" /> 
-                                    Update
-                                </Link>
+                                {/* "Update" removed: it downloaded the vendor's UI from pos.dftech.in over this
+                                    build. The UI is now built from frontend/ (see frontend/README.md). */}
                                 <Link className="dropdown-item" to={"#"} onClick={forceUploadDB}>
                                     <i className="dropdown-item-icon mdi mdi-backup-restore text-primary me-2" /> 
                                     Backup
@@ -732,7 +668,7 @@ function Navbar() {
             </button>
         </div>
         </nav>
-        {location.pathname.indexOf('/pos')!==-1 && focused && <SearchBoard pos={position.y} />}
+        {location.pathname.indexOf('/pos')!==-1 && focused && <SearchBoard />}
         <Modal isOpen={orderModal}>
             <ModalHeader>
                 <p style={{ fontSize:'1.5rem' }}> Previous Order Details </p>
@@ -836,84 +772,13 @@ function Navbar() {
                 </ModalFooter>
             </Form>
         </Modal>
-        {
-            filling && !hasKeyboard && 
-            <div className='mt-4 position-fixed w-50' style={{zIndex:9999, top:60 }}>
-            <div
-                style={{
-                    overflow: "hidden",
-                    position: "relative",
-                    touchAction: "none",
-                }}
-                onMouseMove={handleMouseMove}
-                onTouchMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onTouchEnd={handleMouseUp}
-                >
-                <div
-                    style={{
-                        position: "fixed",
-                        top: `${position.y}px`,
-                        left: `${position.x}px`,
-                        cursor: dragging ? "grabbing" : "grab",
-                        zIndex: 1000,
-                        width:700,
-                        touchAction: "none",
-                        transform: `scale(${scale})`, transformOrigin: "top center"
-                    }}
-                >
-                    <div
-                        onMouseDown={handleMouseDown}
-                        onTouchStart={handleMouseDown}
-                        style={{
-                            background: "#444",
-                            color: "#fff",
-                            padding: 10,
-                            cursor: "grab",
-                            textAlign: "center",
-                            touchAction: "none",
-                            borderRadius: "8px 8px 0 0",
-                        }}
-                    >
-                        <Button text={' - '} onClick={decrease} />
-                        <span> Hold To Drag </span>
-                        <Button text={' + '} onClick={increase} />
-                    </div>
-                        <Keyboard
-                            onChange={onChangeKey}
-                            onKeyPress={(e) => {
-                                if(e === "{lock}")
-                                {
-                                    setLayout((prev) => (prev === "default" ? "shift" : "default"))
-                                }
-                            }}
-                            keyboardRef={(r) => (keyboardRef.current = r)}
-                            layout={{
-                                default: [
-                                    "1 2 3 4 5 6 7 8 9 0",
-                                    "q w e r t y u i o p",
-                                    "{lock} a s d f g h j k l",
-                                    "z x c v b n m {bksp}",
-                                    "{space}"
-                                ],
-                                shift: [
-                                    "1 2 3 4 5 6 7 8 9 0",
-                                    "Q W E R T Y U I O P",
-                                    "{lock} A S D F G H J K L",
-                                    "Z X C V B N M {bksp}",
-                                    "{space}"
-                                ]
-                            }}
-                            layoutName={layoutName}
-                        />
-                    <div className='bg-white d-flex board-navs' style={{justifyContent:'space-between',padding:'5px 20px'}}>
-                        <Button onClick={()=>{setKey('');keyboardRef.current.clearInput()}} text={'CLEAR'} />
-                        <Button onClick={()=>setFilling('')} text={'HIDE'} />
-                    </div>
-                </div>
-            </div>
-        </div>
-        }
+        {filling && !hasKeyboard && <TouchKeyboard
+                open
+                value={key}
+                onChange={onChangeKey}
+                label="Application key"
+                onClose={() => setFilling(false)}
+            />}
 
     </>
     )

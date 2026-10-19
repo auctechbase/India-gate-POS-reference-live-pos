@@ -8,6 +8,16 @@ import toast, { LoaderIcon } from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSearch } from '../../contexts/SearchContext';
 import { TaxTable } from '../layouts/Navbar';
+import './PayPad.css';
+
+// One key of the payment pad. Acts on pointerdown: instant on a touchscreen.
+const PadKey = ({ onPress, fn, tall, label, children }) => (
+    <button type="button" aria-label={label}
+        className={`pay-pad__key ${fn ? 'pay-pad__key--fn' : ''} ${tall ? 'pay-pad__key--tall' : ''}`}
+        onPointerDown={e => { e.preventDefault(); onPress(); }}>
+        {children}
+    </button>
+);
 
 let RETURNS=0
 export default function Payment() 
@@ -126,6 +136,13 @@ export default function Payment()
 
     const changeInput = input => {
         let newAmount
+        if(input === 'back') { // remove the last digit instead of clearing the whole amount
+            newAmount = String(number).slice(0, -1);
+            setNumber(newAmount);
+            setByAll({...byAll, [currentMethod]: newAmount || 0});
+            return;
+        }
+        if(input === '.' && String(number).includes('.')) return; // only one decimal point
         newAmount = number + input;  
         setNumber(number + input);
         setByAll({...byAll, [currentMethod]:newAmount});
@@ -223,23 +240,27 @@ export default function Payment()
                         acc.products.push(id)
                     }
                 }
-                if(id==='quick' && acc.quantity[id]) {
-                    acc.quantity[`${id+quicks}`] = stock // ++ stock of this round
-                } else {
-                    acc.quantity[id] = id!=='quick' ? ((acc.quantity[stock] || 0) - 0) + (stock-0) : stock-0;  // Increment quantity
-                }
                 acc.total = f(total); // Accumulate total price
                 if(unit) acc.unit[id] = unit?? null
-                if(id==='quick' && acc.price[id]) {
-                    acc.price[id+quicks] = rest.return ? - (acc.quantity[id+quicks] || 0) * f(price) : (acc.quantity[id+quicks] || 0) * f(price)
+                if(id==='quick') {
+                    const key = acc.quantity[id] !== undefined ? `${id+quicks}` : id; // every quick item is its own line
+                    acc.quantity[key] = stock-0
+                    acc.price[key] = Math.round((rest.return ? -1 : 1) * (stock-0) * f(price) * 100) / 100
                 } else {
-                    acc.price[id] = rest.return ? - (acc.quantity[id] || 0) * f(price) : (acc.quantity[id] || 0) * f(price)
+                    // The same product can be in the cart more than once (scanned twice, or sold and
+                    // returned). Add every line up: before, each line overwrote the previous one, so
+                    // stock and reports only saw the last line. `units` is signed (returns negative);
+                    // the server reads the sign of price[id] to know if stock goes out or comes back.
+                    const units = (acc.units[id] || 0) + (rest.return ? -1 : 1) * (stock-0)
+                    acc.units[id] = units
+                    acc.quantity[id] = Math.abs(units)
+                    acc.price[id] = Math.round(((acc.price[id] || 0) + (rest.return ? -1 : 1) * (stock-0) * f(price)) * 100) / 100
                 }
                 if(id==='quick') acc.otherAmount = rest.return ? (acc.otherAmount -0) - price: (acc.otherAmount -0) + (price-0)
                 acc.r = returnPart();
                 return acc;
             },
-            { products: [], total: 0, quantity: {}, otherAmount:0.00, unit:{}, price:{}, r:'' }
+            { products: [], total: 0, quantity: {}, units: {}, otherAmount:0.00, unit:{}, price:{}, r:'' }
         );
 
         const {data} = await axios.post(`orders/create`, {
@@ -399,31 +420,14 @@ export default function Payment()
                     </div>}
                     { paymentMethod.length ? (<>
                         <div className="calculator">
-                            <div className="row mt-2 offset-2">
-                                {[1,2,3].map( (btn,i) => <div className="col-sm-3" key={i} onClick={()=>changeInput(btn)}>
-                                    <button style={{fontSize:'1.5rem'}} className="btn btn-light  w-100 text-dark"> <b> {btn} </b> </button>
-                                </div> )}
-                            </div>
-                            <div className="row mt-1 offset-2">
-                                {[4,5,6].map( (btn,i) => <div className="col-sm-3" key={i} onClick={()=>changeInput(btn)}>
-                                    <button style={{fontSize:'1.5rem'}} className="btn btn-light  w-100 text-dark"> <b> {btn} </b> </button>
-                                </div> )}
-                            </div>
-                            <div className="row mt-1 offset-2">
-                                {[7,8,9].map( (btn,i) => <div className="col-sm-3" key={i} onClick={()=>changeInput(btn)}>
-                                    <button style={{fontSize:'1.5rem'}} className="btn btn-light  w-100 text-dark"> <b> {btn} </b> </button>
-                                </div> )}
-                            </div>
-                            <div className="row mt-1 offset-2">
-                                {[0, '.'].map( it => <div key={it} className={`col-sm-3 `} onClick={()=> changeInput(it)}>
-                                    <button style={{fontSize:'1.5rem'}} className="btn btn-light w-100 text-dark"> <b> {it} </b> </button>
-                                </div> )}
-                                <div className="col-sm-3" onClick={()=> {
-                                    setByAll({...byAll, [currentMethod]:0});
-                                    setNumber('')
-                                }}>
-                                    <button style={{fontSize:'1.5rem'}} className="btn btn-light w-100 text-dark"> <b> Clear </b> </button>
-                                </div>
+                            {/* Big touch keys, with Backspace. Act on pointerdown for instant response. */}
+                            <div className="pay-pad mt-2">
+                                {[1,2,3].map(btn => <PadKey key={btn} onPress={() => changeInput(btn)}>{btn}</PadKey>)}
+                                <PadKey fn tall label="Backspace" onPress={() => changeInput('back')}><i className="mdi mdi-backspace-outline" /></PadKey>
+                                {[4,5,6].map(btn => <PadKey key={btn} onPress={() => changeInput(btn)}>{btn}</PadKey>)}
+                                {[7,8,9].map(btn => <PadKey key={btn} onPress={() => changeInput(btn)}>{btn}</PadKey>)}
+                                <PadKey fn tall onPress={() => { setByAll({...byAll, [currentMethod]:0}); setNumber('') }}>Clear</PadKey>
+                                {['.',0,'00'].map(btn => <PadKey key={btn} onPress={() => changeInput(btn)}>{btn}</PadKey>)}
                             </div>
                             <div className="row mt-1">
                                 <div className="col-sm-12 d-flex">

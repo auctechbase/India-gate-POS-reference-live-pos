@@ -1,5 +1,5 @@
 import axios from 'axios';
-import Keyboard from 'react-simple-keyboard';
+import TouchKeyboard from '../common/TouchKeyboard';
 import React, { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams } from 'react-router-dom'
@@ -11,7 +11,6 @@ function CategoryAndTax() {
     const {type} = useParams()
     const dispatch = useDispatch();
     const keyboardRef = useRef();
-    const [ layoutName, setLayout ] = useState('default')
     const [ focused, setFocused ] = useState(false);
     const [ currentIndex, setCurrentIndex ] = useState(null)
     const { hasKeyboard } = useSelector(s => s.auth)
@@ -226,27 +225,8 @@ function CategoryAndTax() {
     },[taxLoaded, dbTaxes])
 
     const [ editingType, setEditingType ] = useState(null)
-    const [ position, setPosition ] = useState({ x: window.screen.availWidth/4, y: window.screen.availHeight / 2 });
-    const [ dragging, setDragging ] = useState(false);
-    const [ offset, setOffset ] = useState({ x: 0, y: 0 });
     const [ presetTxt, setPreset ] = useState('');
-    const [ scale, setScale ] = useState(localStorage.getItem('_keyboard_scale')??1)
-    const handleMouseDown = (e) => {
-        setDragging(true);
-        setOffset({
-            x: e.clientX - position.x,
-            y: e.clientY - position.y,
-        });
-    };
 
-    const handleMouseMove = (e) => {
-        if (!dragging) return;
-        setPosition({
-            x: e.clientX - offset.x,
-            y: e.clientY - offset.y,
-        });
-    }
-    const handleMouseUp = () => setDragging(false);
 
     const onChange =  e => {
         if(editingType==='cat') {
@@ -440,7 +420,7 @@ function CategoryAndTax() {
                                                             <Input 
                                                                 data-index={i} 
                                                                 name='amount' 
-                                                                defaultValue={tax.amount} 
+                                                                value={tax.amount ?? ''} 
                                                                 onChange={changeTax}
                                                                 disabled={ tax.id && editingTax!==tax.id }
                                                                 className='input'
@@ -497,97 +477,14 @@ function CategoryAndTax() {
 
            </div>
             <CategoryModal/>
-            {
-                focused && !hasKeyboard && <div className='mt-4 position-fixed w-50' style={{zIndex:9999, top:60 }}>
-                <div
-                    style={{
-                        overflow: "hidden",
-                        position: "relative",
-                        touchAction: "none",
-                    }}
-                    onMouseMove={handleMouseMove}
-                    onTouchMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onTouchEnd={handleMouseUp}
-                >
-                    <div
-                        style={{
-                            position: "fixed",
-                            top: `${position.y}px`,
-                            left: `${position.x}px`,
-                            cursor: dragging ? "grabbing" : "grab",
-                            zIndex: 1000,
-                            width:700,
-                            resize:'both',
-                            overflow:'auto',
-                            touchAction: "none",
-                            transform: `scale(${scale})`, transformOrigin: "top center"
-                        }}
-                    >
-                        <div
-                        onMouseDown={handleMouseDown}
-                        onTouchStart={handleMouseDown}
-                            style={{
-                                background: "#444",
-                                color: "#fff",
-                                padding: 10,
-                                cursor: "grab",
-                                textAlign: "center",
-                                touchAction: "none",
-                                borderRadius: "8px 8px 0 0",
-                            }}
-                        >
-                            Hold To Drag 
-                        </div>
-                            <Keyboard
-                                onChange={onChange}
-                                onKeyPress={(e) => {
-                                    if(e === "{lock}")
-                                    {
-                                        setLayout((prev) => (prev === "default" ? "shift" : "default"))
-                                    }
-                                }}
-                                keyboardRef={(r) => (keyboardRef.current = r)}
-                                layout={{
-                                    default: focused==='amount' ? [
-                                        "! @ # $ % ^ & * {bksp}",
-                                        "1 2 3 4 5 6 7 8 9 0",
-                                    ]: [
-                                        "1 2 3 4 5 6 7 8 9 0",
-                                        "q w e r t y u i o p",
-                                        "{lock} a s d f g h j k l",
-                                        "z x c v b n m {bksp}",
-                                        "{space}"
-                                    ],
-                                    shift: [
-                                        "1 2 3 4 5 6 7 8 9 0",
-                                        "Q W E R T Y U I O P",
-                                        "{lock} A S D F G H J K L",
-                                        "Z X C V B N M {bksp}",
-                                        "{space}"
-                                    ]
-                                }}
-                                display={{
-                                    "{lock}":"Caps",
-                                    "{bksp}":"Backspace",
-                                    "{space}":"Space"
-                                }}
-                                layoutName={layoutName}
-                            />
-                        <div className='bg-white d-flex board-navs' style={{justifyContent:'space-between',padding:'5px 20px'}}>
-                            <button className='btn btn-light btn-rounded' onClick={()=>{
-                                // se({...inputFields,[focused]:''})
-                                keyboardRef.current.clearInput()
-                            }} style={{border:'1px solid gray'}}>CLEAR</button>
-                            <button style={{border:'1px solid'}} className='btn btn-light btn-rounded' onClick={() => setScale(prev => Math.max(prev - 0.1, 0.5))}>-</button>
-                            <span style={{placeContent:'center'}}> Size: {Math.round(scale * 100)}% </span>
-                            <button style={{border:'1px solid'}} className='btn btn-light btn-rounded' onClick={() => setScale(prev => Math.min(prev + 0.1, 2))}>+</button>
-                            <button onClick={()=>setFocused('')} className='btn btn-light btn-rounded' style={{border:'1px solid gray'}}>HIDE</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            }
+            {focused && !hasKeyboard && <TouchKeyboard
+                    open
+                    value={(editingType === 'cat' ? categories : taxes)[currentIndex]?.[focused] ?? ''}
+                    onChange={onChange}
+                    layout={focused === 'amount' ? 'decimal' : 'text'}
+                    label={focused === 'amount' ? 'Tax amount' : 'Name'}
+                    onClose={() => setFocused('')}
+                />}
         </>
     )
 }

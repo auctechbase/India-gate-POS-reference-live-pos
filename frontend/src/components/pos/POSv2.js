@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useRef, useState } from 'react'; 
+import TouchKeyboard from '../common/TouchKeyboard';
 import axios from 'axios';
 import { useDispatch, useSelector } from 'react-redux';
 import CreatableSelect from 'react-select/creatable'
@@ -8,13 +9,10 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useSearch } from '../../contexts/SearchContext';
 import { Modal, ModalHeader, ModalBody, ModalFooter, Row, Label, Input, FormGroup, Col, Form } from 'reactstrap';
 import toast from 'react-hot-toast';
-import Keyboard from 'react-simple-keyboard' 
 import Category from './Category';
 import Products from './Products';
 import logo from '../../asset/images/logo.png'
 import { Button } from '../layouts/Navbar';
-import { innerStyle } from '../../objects/keyboard/keyboardStyle';
-import { lowerCase, numeric, numPad } from '../../objects/keyboard/layouts';
 let noCodeProducts=[]
 function POS() {
     const cRef = useRef(null);
@@ -69,30 +67,11 @@ function POS() {
         }
     }
     const toPayment = () => navigator(`/payment/${activeSession}`)
-    const [ position, setPosition ] = useState({ x: window.screen.availWidth/3.5, y: window.screen.availHeight / 2 });
-    const [ dragging, setDragging ] = useState(false);
-    const [ offset, setOffset ] = useState({ x: 0, y: 0 });
-    const [ layout, setLayout ] = useState('default');
 
-    const handleMouseDown = (e) => {
-        setDragging(true);
-        setOffset({
-            x: e.clientX - position.x,
-            y: e.clientY - position.y,
-        });
-    };
 
-    const handleMouseMove = (e) => {
-        if (!dragging) return;
-        setPosition({
-            x: e.clientX - offset.x,
-            y: e.clientY - offset.y,
-        });
-    };
 
-    const handleMouseUp = () => setDragging(false);
     // end for v-keyboard
-    const btnStyle = {minHeight:60, fontSize:'1rem'}
+    const btnStyle = {minHeight:60, fontSize:'1.5rem', touchAction:'manipulation'}
     
     useEffect(() => {
         let inputBuffer = "";
@@ -182,7 +161,10 @@ function POS() {
             // return handleVegetable() 
         }
         const copyKartProducts = JSON.parse(JSON.stringify(KartProducts));
-        let thisProduct = copyKartProducts[activeSession]?.find(ite => ite.id === prID);
+        // Only merge with a line of the same kind: a return tap must not turn the sale line of the
+        // same product into a return (selling 2 then returning 1 used to become "return 3").
+        const sameKind = ite => ite.id === prID && Boolean(ite.return) === !sale;
+        let thisProduct = copyKartProducts[activeSession]?.find(sameKind);
         // check if the product is already in cart
         if( thisProduct && !split ) {
 
@@ -196,7 +178,7 @@ function POS() {
             }
             let currentIndex
             if(!split) {  // update the current project highlight
-                currentIndex = KartProducts[activeSession].findIndex(item => item.id === product.id)
+                currentIndex = KartProducts[activeSession].findIndex(sameKind)
             } else { // update the current project highlight if splittin products is off
                 currentIndex = KartProducts[activeSession]?.length??0
             }
@@ -574,6 +556,10 @@ function POS() {
             if(input==='clear') {
                 newPriceAmount = '0'
                 setNumber('');
+            } else if(input==='back') { // remove the last digit instead of wiping everything
+                const next = String(number).slice(0, -1);
+                newPriceAmount = next || '0';
+                setNumber(next);
             } else {
                 newPriceAmount = number + input
                 setNumber(number + input);
@@ -602,6 +588,10 @@ function POS() {
             if(input==='clear') {
                 newStockAmount = '0';
                 setQty('');
+            } else if(input==='back') {
+                const next = String(qty).slice(0, -1);
+                newStockAmount = next || '0';
+                setQty(next);
             } else {
                 newStockAmount = qty + input;
                 if(inventory) {
@@ -648,17 +638,8 @@ function POS() {
     }, [presetTxt, focused])
 
     // handling size
-    const [scale, setScale] = useState(localStorage.getItem('_keyboard_scale')??1); // Default scale (1 = 100%)
 
-    const decrease = () => {
-        localStorage.setItem('_keyboard_scale', Math.max(scale - 0.1, 0.5))
-        setScale(prev => Math.max(prev - 0.1, 0.5))
-    }
 
-    const increase = () => {
-        localStorage.setItem('_keyboard_scale', Math.min(JSON.parse(scale) + 0.1, 2))
-        setScale(prev => Math.min(JSON.parse(prev) + 0.1, 2))
-    }
 
     return (
         <>
@@ -793,14 +774,18 @@ function POS() {
                                 <button className="btn btn-light num w-100 text-dark" disabled={!editing && !editingQT} style={btnStyle}> <b> {it} </b> </button>
                             </div>)}
                             <div className="col-sm-3" onClick={resetCart}>
-                                <button className="btn btn-light text-dark w-100 num" type="button" style={{...btnStyle,padding:10}}> <b>Cancel Sale</b> </button>
+                                <button className="btn btn-light text-dark w-100 num" type="button" style={{...btnStyle,padding:10,fontSize:'1.1rem'}}> <b>Cancel Sale</b> </button>
                             </div>
                         </div>
                         <div className="row mt-1">
                             { [4,5,6].map( it => <div className="col-sm-3 calc" key={it} onClick={(e)=> changeInput(it,e)}>
                                 <button className="btn btn-light num w-100 text-dark" disabled={!editing && !editingQT} style={btnStyle}> <b> {it} </b> </button>
                             </div>)}
-                            <div className="col-sm-3"/>
+                            <div className="col-sm-3 calc" onClick={(e)=> changeInput('back',e)}>
+                                <button className="btn btn-light num w-100 text-dark" disabled={!editing && !editingQT} style={btnStyle} aria-label="Backspace">
+                                    <i className="mdi mdi-backspace-outline" />
+                                </button>
+                            </div>
                         </div>
                         <div className="row mt-1">
                             {[7,8,9].map( ite => <div className="col-sm-3 calc" key={ite} onClick={(e)=> changeInput(ite,e)}>
@@ -813,7 +798,7 @@ function POS() {
                                 setEditing(false);
                                 setEditingQT(!editingQT);
                             }}>
-                                <button className='btn btn-light num w-100' style={{...btnStyle,padding:10}}>
+                                <button className='btn btn-light num w-100' style={{...btnStyle,padding:10,fontSize:'1.1rem'}}>
                                     <b className='num'>{!editingQT?'Edit Qty':'Done'}</b>
                                 </button>
                             </div>
@@ -826,13 +811,13 @@ function POS() {
                                 <button className="btn btn-light num w-100 text-dark calc" disabled={!editing && !editingQT} onClick={e=> changeInput(0, e)} style={btnStyle}> <b> 0 </b> </button>
                             </div>
                             <div className="col-sm-3">
-                                <button className="btn btn-light num w-100 text-dark" disabled={!editing && !editingQT} onClick={e=>changeInput('clear',e)} style={{...btnStyle,padding:'15px 10px'}}> <b>Reset</b> </button>
+                                <button className="btn btn-light num w-100 text-dark" disabled={!editing && !editingQT} onClick={e=>changeInput('clear',e)} style={{...btnStyle,padding:'15px 10px',fontSize:'1.1rem'}}> <b>Reset</b> </button>
                             </div>
                             <div className="col-sm-3" onClick={(e)=> {
                                 setEditingQT(false)
                                 setEditing(!editing)
                             }}>
-                                <button className="btn btn-light num w-100 text-dark" style={{...btnStyle,padding:10}}> 
+                                <button className="btn btn-light num w-100 text-dark" style={{...btnStyle,padding:10,fontSize:'1.1rem'}}> 
                                     <b className='num'> {!editing?'Edit Price':'Done'} </b> 
                                 </button>
                             </div>
@@ -1028,132 +1013,22 @@ function POS() {
                     </ModalFooter>
                 </Form>
             </Modal>
-            {focused && !hasKeyboard && <div className='mt-4 position-fixed w-50' style={{zIndex:9999, top:60 }}>
-                <div
-                    style={{
-                        overflow: "hidden",
-                        position: "relative",
-                        touchAction: "none",
-                    }}
-                    onMouseMove={handleMouseMove}
-                    onTouchMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onTouchEnd={handleMouseUp}
-                >
-                    <div
-                        style={{
-                            position: "fixed",
-                            top: `${position.y}px`,
-                            left: `${position.x}px`,
-                            cursor: dragging ? "grabbing" : "grab",
-                            zIndex: 1000,
-                            width:400,
-                            touchAction: "none",
-                            transform: `scale(${scale})`, transformOrigin: "top center"
-                        }}
-                    >
-                        <div
-                            onMouseDown={handleMouseDown}
-                            onTouchStart={handleMouseDown}
-                            style={{
-                                background: "#444",
-                                color: "#fff",
-                                padding: 10,
-                                cursor: "grab",
-                                textAlign: "center",
-                                borderRadius: "8px 8px 0 0",
-                                touchAction: "none",
-                            }}
-                        >
-                            <Button text={<i className='fa fa-minus'/>} onClick={decrease} />
-                            <span> Hold To Drag </span>
-                            <Button text={<i className='fa fa-plus'/>} onClick={increase} />
-                        </div>
-                            <Keyboard
-                                onChange={e => setEnteredCash(e)}
-                                keyboardRef={(r) => (keyboardRef.current = r)}
-                                layout={numeric}
-                                display={{
-                                    "{bksp}": "x"
-                                }}
-                            />
-                        <div className='bg-white d-flex board-navs' style={{justifyContent:'space-between',padding:'5px 20px'}}>
-                            <Button onClick={()=> {setEnteredCash('');keyboardRef.current.clearInput()}} text={'CLEAR'} />
-                            <Button onClick={()=>setFocused('')} text={'HIDE'} />
-                        </div>
-                    </div>
-                </div>
-            </div>}
-            {focusedCustom && !hasKeyboard && <div className='mt-4 position-fixed w-50' style={{zIndex:9999, top:60 }}>
-                <div
-                    style={{
-                        overflow: "hidden",
-                        position: "relative",
-                        touchAction: "none",
-                    }}
-                    onMouseMove={handleMouseMove}
-                    onTouchMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onTouchEnd={handleMouseUp}
-                    >
-                    <div
-                        style={{
-                            position: "fixed",
-                            top: `${position.y}px`,
-                            left: `${position.x}px`,
-                            cursor: dragging ? "grabbing" : "grab",
-                            zIndex: 1000,
-                            width:['price','stock','vStock','vPrice'].includes(focusedCustom)? 400: 700,
-                            touchAction: "none",
-                            transform: `scale(${scale})`, transformOrigin: "top center"
-                        }}
-                    >
-                        <div
-                            onMouseDown={handleMouseDown}
-                            onTouchStart={handleMouseDown}
-                            style={innerStyle}
-                        >
-                            <Button text={<i className='fa fa-minus'/>} onClick={decrease}/>
-                            <span> Hold To Drag </span>
-                            <Button text={<i className='fa fa-plus'/>} onClick={increase}/>
-                        </div>
-                            <Keyboard
-                                onChange={fillCustom}
-                                keyboardRef={(r) => (ckeyboardRef.current = r)}
-                                onKeyPress={(e) => {
-                                    if(e === "{lock}")
-                                    {
-                                        setLayout((prev) => (prev === "default" ? "shift" : "default"))
-                                    }
-                                }}
-                                layout={{
-                                    default: ['price','stock','vStock','vPrice'].includes(focusedCustom)? numPad:
-                                    lowerCase,
-                                    shift: [
-                                        "1 2 3 4 5 6 7 8 9 0",
-                                        "Q W E R T Y U I O P",
-                                        "{lock} A S D F G H J K L",
-                                        "Z X C V B N M {bksp}",
-                                        "{space}"
-                                    ]
-                                }}
-                                display={{
-                                    "{bksp}":['price','stock','vStock','vPrice'].includes(focusedCustom) ? 'x': 'backspace',
-                                    '{space}' : " ",
-                                    '{lock}' : "Caps"
-                                }}
-                                layoutName={layout}
-                            />
-                        <div className='bg-white d-flex board-navs' style={{justifyContent:'space-between',padding:'5px 20px'}}>
-                            <Button text='CLEAR' onClick={()=>{
-                                setCustom({...custom, [focusedCustom]:''})
-                                ckeyboardRef.current.clearInput()
-                            }} />
-                            <Button onClick={()=>setFocusedCustom('')} text={'HIDE'} />
-                        </div>
-                    </div>
-                </div>
-            </div>}
+            {focused && !hasKeyboard && <TouchKeyboard
+                open
+                value={enteredCash}
+                onChange={setEnteredCash}
+                layout="decimal"
+                label="Opening cash in drawer"
+                onClose={() => setFocused('')}
+            />}
+            {focusedCustom && !hasKeyboard && <TouchKeyboard
+                open
+                value={custom[focusedCustom]}
+                onChange={fillCustom}
+                layout={['price', 'stock', 'vStock', 'vPrice'].includes(focusedCustom) ? 'decimal' : 'text'}
+                label={{ name: 'Product name', price: 'Price', stock: 'Stock', barcode: 'Barcode', vStock: 'Weight', vPrice: 'Price' }[focusedCustom] ?? focusedCustom}
+                onClose={() => setFocusedCustom('')}
+            />}
         </>
     )
 }

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import TouchKeyboard from '../common/TouchKeyboard';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { useDispatch, useSelector } from 'react-redux';
 import { Container, Form, FormGroup, Input, Label, Modal, ModalBody, ModalFooter, ModalHeader, Row } from 'reactstrap';
 import { useGetNotesQuery } from '../../features/centerSlice';
-import Keyboard from 'react-simple-keyboard';
 
 export default function Notes() {
     const [fields, setFields] = useState({})
@@ -79,36 +79,9 @@ export default function Notes() {
             setNotes(data.notes)
         }
     },[data, isSuccess])
-    const [position, setPosition] = useState({ x: window.screen.availWidth/4, y: window.screen.availHeight / 2 });
-    const [dragging, setDragging] = useState(false);
-    const [offset, setOffset] = useState({  x: 0, y: 0  });
 
-    const handleMouseDown = (e) => {
-        setDragging(true);
-        setOffset({
-          x: e.clientX - position.x,
-          y: e.clientY - position.y,
-        });
-    };
 
-    const handleMouseMove = (e) => {
-        if (!dragging) return;
-        setPosition({
-            x: e.clientX - offset.x,
-            y: e.clientY - offset.y,
-        });
-    }
-    const handleMouseUp = () => setDragging(false);
     const [ focused, setFocused ] = useState('');
-    const [scale, setScale] = useState(localStorage.getItem('_keyboard_scale')??1); // Default scale (1 = 100%)
-    const decrease = () => {
-        localStorage.setItem('_keyboard_scale', Math.max(scale - 0.1, 0.5))
-        setScale(prev => Math.max(prev - 0.1, 0.5))
-    }
-    const increase = () => {
-        localStorage.setItem('_keyboard_scale', Math.min(JSON.parse(scale) + 0.1, 2))
-        setScale(prev => Math.min(JSON.parse(prev) + 0.1, 2))
-    }
 
     
     return (
@@ -195,71 +168,14 @@ export default function Notes() {
                     </ModalFooter> 
                 </Form>
             </Modal>
-            {focused && !hasKeyboard && <div className='mt-4 position-fixed w-50' style={{zIndex:9999, top:60 }}>
-            <div
-                style={{
-                    overflow: "hidden",
-                    position: "relative",
-                    touchAction: "none",
-                }}
-                onMouseMove={handleMouseMove}
-                onTouchMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onTouchEnd={handleMouseUp}
-            >
-                <div
-                    style={{
-                        position: "fixed",
-                        top: `${position.y}px`,
-                        left: `${position.x}px`,
-                        cursor: dragging ? "grabbing" : "grab",
-                        zIndex: 1000,
-                        width:700,
-                        resize:'both',
-                        overflow:'auto',
-                        touchAction: "none",
-                        transform: `scale(${scale})`, transformOrigin: "top center"
-                    }}
-                >
-                    <div
-                        onMouseDown={handleMouseDown}
-                        onTouchStart={handleMouseDown}
-                        style={{
-                            background: "#444",
-                            color: "#fff",
-                            padding: 10,
-                            cursor: "grab",
-                            textAlign: "center",
-                            borderRadius: "8px 8px 0 0",
-                            touchAction: "none",
-                        }}
-                    >
-                        Hold To Drag 
-                    </div>
-                        <Keyboard
-                            onChange={e => setFields({...fields, amount:e})}
-                            layout={{
-                                default: [
-                                    "1 2 3",
-                                    "4 5 6",
-                                    "7 8 9",
-                                    "0  {bksp}",
-                                ]
-                            }}
-                            display={{ 
-                                "{bksp}":"x", 
-                            }}
-                        />
-                    <div className='bg-white d-flex board-navs' style={{justifyContent:'space-between',padding:'5px 20px'}}>
-                        <button className='btn btn-light btn-rounded' onClick={()=>setFields({...fields, amount:''})} style={{border:'1px solid gray'}}>CLEAR</button>
-                        <button style={{border:'1px solid'}} className='btn btn-light btn-rounded' onClick={decrease}>-</button>
-                        <span> Size: {Math.round(scale * 100)}% </span>
-                        <button style={{border:'1px solid'}} className='btn btn-light btn-rounded' onClick={increase}>+</button>
-                        <button onClick={()=>setFocused(!focused)} className='btn btn-light btn-rounded' style={{border:'1px solid gray'}}>HIDE</button>
-                    </div>
-                </div>
-            </div>
-        </div>}
+            {focused && !hasKeyboard && <TouchKeyboard
+                open
+                value={fields.amount}
+                onChange={amount => setFields({...fields, amount})}
+                layout="integer"
+                label="Note amount"
+                onClose={() => setFocused('')}
+            />}
         </>
     )
 }

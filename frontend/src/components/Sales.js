@@ -13,6 +13,7 @@ import axios from 'axios';
 import 'select2';
 import { printDivById } from '../helpers/attachments';
 import { calTax, sanitize, TaxTable } from './layouts/Navbar';
+import Analytics from './analytics/Analytics';
 $.fn.DataTable.ext.errMode = 'none';
 export default function Sales() {
     const modalBody = useRef(null);
@@ -285,6 +286,7 @@ export default function Sales() {
     return (
         <>
         <div className="content-wrapper" style={{width:'100%'}}>
+            <Analytics />
             <div className="row">
                 <div className="col-lg-12 grid-margin stretch-card">
                     <div className='d-block position-absolute' style={{zIndex:1,right:60}}>

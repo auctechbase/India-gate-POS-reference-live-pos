@@ -1,0 +1,82 @@
+/* Docked on-screen keyboard. Keys are at least 64px tall: comfortable for fingers. */
+.touch-kb {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2000; /* above reactstrap modals (1050) */
+    background: #263238;
+    padding: 10px 12px 14px;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.25);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    animation: touch-kb-in 0.16s ease-out;
+}
+@keyframes touch-kb-in { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.touch-kb--numeric {
+    left: auto;
+    right: 16px;
+    bottom: 16px;
+    width: 380px;
+    border-radius: 18px;
+}
+
+.touch-kb__bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.touch-kb__preview {
+    flex: 1;
+    min-width: 0;
+    min-height: 52px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4px 14px;
+    background: #fff;
+    border-radius: 10px;
+}
+.touch-kb__label { font-size: 0.75rem; color: #607d8b; text-transform: uppercase; letter-spacing: 0.04em; }
+.touch-kb__value { font-size: 1.35rem; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.touch-kb__placeholder { color: #b0bec5; }
+.touch-kb__action {
+    min-height: 52px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 10px;
+    background: #455a64;
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+.touch-kb__action:active { background: #37474f; }
+
+.touch-kb__keys { display: flex; flex-direction: column; gap: 8px; max-width: 1280px; margin: 0 auto; }
+.touch-kb__row { display: flex; gap: 8px; }
+.touch-kb__key {
+    flex: 1;
+    min-height: 64px;
+    border: 0;
+    border-radius: 10px;
+    background: #fff;
+    color: #111;
+    font-size: 1.5rem;
+    font-weight: 500;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+    transition: transform 0.05s, background 0.05s;
+}
+.touch-kb__key:active { transform: translateY(2px); box-shadow: none; background: #cfd8dc; }
+.touch-kb__key--fn { background: #90a4ae; color: #fff; font-size: 1.15rem; }
+.touch-kb__key--fn:active { background: #78909c; }
+.touch-kb__key--space { flex: 5; }
+.touch-kb__key--done { flex: 2; background: #2ab3a6; color: #fff; font-weight: 700; }
+.touch-kb__key--done:active { background: #22968b; }
+.touch-kb__key--on { background: #546e7a; }
+.touch-kb__key--lock { background: #2ab3a6; }
+
+.touch-kb--numeric .touch-kb__key { min-height: 72px; font-size: 1.9rem; }
+.touch-kb--numeric .touch-kb__key--wide { flex: 1; font-size: 1.3rem; }

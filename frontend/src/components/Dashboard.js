@@ -13,6 +13,10 @@ function Dashboard() {
     const { theme } = useSelector( s => s.auth);
     const padding = {padding:'2%'};
     const card = {width:'100%',textAlign:'center', minHeight:170, placeContent:'center'}
+    const websiteIcon = {
+        width:'100%', aspectRatio:'1', display:'grid', placeItems:'center', borderRadius:'50%',
+        background:'linear-gradient(135deg,#2b8a9e,#1b4f72)', color:'#fff', fontSize:'5.5rem', lineHeight:1,
+    }
     const {data, isSuccess } = useGetSettingsQuery();
 
     useEffect(()=>{
@@ -116,18 +120,25 @@ function Dashboard() {
                                 </Link>
                                 { theme==='default' && <h5 className="pt-3">Sales</h5> }
                             </div>
-                        </div>
-                    </div>
-                    <div className="col-md-2 d-none">
-                        <Link to={'/orders'} style={{textDecoration:'none'}}>
-                            <div className="card redirect" style={{ height:"95%", marginTop:12, marginLeft:20 }}>
-                                <div className="card-body">
-                                    <h1 style={{fontFamily:'system-ui'}}>Orders</h1> <br/>
-                                    <h1 style={{fontFamily:'system-ui'}}>From</h1> <br/>
-                                    <h1 style={{fontFamily:'system-ui', fontSize:'2.4rem'}}>Website</h1>
+                            <div className="col-md-4 text-center" style={padding}>
+                                <Link to={`/website`} style={{textDecoration:'none'}}>
+                                <div className="card redirect" data-toggle="tooltip" data-placement="bottom" title="Website orders">
+                                    <div className="card-body">
+                                    <div className="d-flex">
+                                        <div style={card}>
+                                            {
+                                                theme==='retro' ? 
+                                                    <h1 style={{fontSize:'2.4rem',fontFamily:'system-ui'}}>WEBSITE</h1> : 
+                                                <div style={websiteIcon}><i className="mdi mdi-web" /></div>
+                                            }
+                                        </div>
+                                    </div>
+                                    </div>
                                 </div>
+                                </Link>
+                                { theme==='default' && <h5 className="pt-3">Website</h5> }
                             </div>
-                        </Link>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -20,6 +20,7 @@ const CategoryAndTax = lazy(() => import("../components/config/CategoryAndTax.js
 const Notes = lazy(() => import("../components/config/Notes.js"));
 const User = lazy(() => import("../components/config/User.js"));
 const Inventory = lazy(() => import("../components/inventory/Inventory.js"));
+const Website = lazy(() => import("../components/website/Website.js"));
 /*****Routes******/
 const ThemeRoutes = [
   {
@@ -76,6 +77,10 @@ const ThemeRoutes = [
       {
         path: "/users",
         element: <User key={9}/>,
+      },
+      {
+        path: "/website",
+        element: <Website key={12}/>,
       },
 
     ],

@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
-import Keyboard from 'react-simple-keyboard';
+import TouchKeyboard from '../common/TouchKeyboard';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import category from '../../asset/images/category.png';
@@ -44,43 +44,16 @@ function Configuration() {
     
     useEffect(()=>{});
     
-    const [ position, setPosition ] = useState({ x: window.screen.availWidth/4, y: window.screen.availHeight / 2 });
-    const [ dragging, setDragging ] = useState(false);
-    const [ offset, setOffset ] = useState({ x: 0, y: 0 });
     
-    const handleMouseDown = (e) => {
-        setDragging(true);
-        setOffset({
-            x: e.clientX - position.x,
-            y: e.clientY - position.y,
-        });
-    };
     
-    const handleMouseMove = (e) => {
-        if (!dragging) return;
-        setPosition({
-            x: e.clientX - offset.x,
-            y: e.clientY - offset.y,
-        });
-    }
-    const handleMouseUp = () => setDragging(false);
     const senty = {placeContent:'center'}
     // presetting text
-    const [ scale, setScale ] = useState(localStorage.getItem('_keyboard_scale')??1)
     const [ presetTxt, setPreset ] = useState(minStock)
     useEffect(() => {
         keyboardRef.current?.setInput(presetTxt);
     }, [presetTxt]);
 
     // handling size 
-    const decrease = () => {
-        localStorage.setItem('_keyboard_scale', Math.max(scale - 0.1, 0.5))
-        setScale(prev => Math.max(prev - 0.1, 0.5))
-    }
-    const increase = () => {
-        localStorage.setItem('_keyboard_scale', Math.min(JSON.parse(scale) + 0.1, 2))
-        setScale(prev => Math.min(prev + 0.1, 2))
-    }
     return (
     <>
         <div className="content-wrapper">
@@ -191,76 +164,14 @@ function Configuration() {
             </Form>
         </Modal>
 
-        {
-            focused && !hasKeyboard && <div className='mt-4 position-fixed w-50' style={{zIndex:9999, top:60 }}>
-            <div
-                style={{
-                    overflow: "hidden",
-                    position: "relative",
-                    touchAction: "none",
-                }}
-                onMouseMove={handleMouseMove}
-                onTouchMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onTouchEnd={handleMouseUp}
-                >
-                <div
-                    style={{
-                        position: "fixed",
-                        top: `${position.y}px`,
-                        left: `${position.x}px`,
-                        cursor: dragging ? "grabbing" : "grab",
-                        zIndex: 1000,
-                        width:700,
-                        transform:`scale(${scale})`, 
-                        transformOrigin: "top center",
-                        touchAction: "none",
-                    }}
-                >
-                    <div
-                        onMouseDown={handleMouseDown}
-                        onTouchStart={handleMouseDown}
-                        style={{
-                            background: "#444",
-                            color: "#fff",
-                            padding: 10,
-                            cursor: "grab",
-                            textAlign: "center",
-                            borderRadius: "8px 8px 0 0",
-                            touchAction: "none",
-                        }}
-                    >
-                        Hold To Drag 
-                    </div>
-                        <Keyboard
-                            onChange={(e)=>setAlert(e)}
-                            keyboardRef={(r) => (keyboardRef.current = r)}
-                            layout={{
-                                default: [
-                                    "1 2 3",
-                                    "4 5 6",
-                                    "7 8 9",
-                                    "0 . {bksp}",
-                                ]
-                            }}
-                            display={{ 
-                                "{bksp}":"x", 
-                            }}
-                        />
-                    <div className='bg-white d-flex board-navs' style={{justifyContent:'space-between',padding:'5px 20px'}}>
-                        <button className='btn btn-light btn-rounded' onClick={()=>{
-                            setAlert('')
-                            keyboardRef.current.clearInput()
-                        }} style={{border:'1px solid gray'}}> CLEAR </button>
-                        <button style={{border:'1px solid'}} className='btn btn-light btn-rounded' onClick={decrease}>-</button>
-                        <span> Size: {Math.round(scale * 100)}% </span>
-                        <button style={{border:'1px solid'}} className='btn btn-light btn-rounded' onClick={increase}>+</button>
-                        <button onClick={()=>setFocused('')} className='btn btn-light btn-rounded' style={{border:'1px solid gray'}}>HIDE</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        }
+        {focused && !hasKeyboard && <TouchKeyboard
+                open
+                value={minStock}
+                onChange={setAlert}
+                layout="integer"
+                label="Stock alert"
+                onClose={() => setFocused('')}
+            />}
     </>
     )
 }
