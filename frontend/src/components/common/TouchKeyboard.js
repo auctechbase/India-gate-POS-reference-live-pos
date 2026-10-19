@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import './TouchKeyboard.css';
 
 /**
@@ -67,18 +68,38 @@ export default function TouchKeyboard({
     valueRef.current = value == null ? '' : String(value);
     const numeric = layout === 'decimal' || layout === 'integer';
 
-    // Make room at the bottom of the page and keep the field being edited visible.
+    // Keep the field being edited visible above the keyboard. First let a scrollable page
+    // scroll; if the field is still covered (e.g. the centred login card), slide the page,
+    // or the dialog the field is in, up by exactly the covered amount.
     useLayoutEffect(() => {
         if (!open || !panelRef.current) return undefined;
-        const height = panelRef.current.offsetHeight;
-        document.body.style.paddingBottom = `${height}px`;
-        const active = document.activeElement;
-        if (active && active.tagName === 'INPUT') {
-            const rect = active.getBoundingClientRect();
-            if (rect.bottom > window.innerHeight - height - 16) active.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        // Use the layout position, not getBoundingClientRect(): the slide-in animation is
+        // still running here and would make the keyboard look lower than it ends up.
+        const el = panelRef.current;
+        const bottomGap = parseFloat(getComputedStyle(el).bottom) || 0;
+        const panel = { top: window.innerHeight - el.offsetHeight - bottomGap, left: el.offsetLeft, right: el.offsetLeft + el.offsetWidth };
+        document.body.style.paddingBottom = `${el.offsetHeight + bottomGap}px`;
+        const field = document.activeElement;
+        let lifted = null;
+        if (field && ['INPUT', 'TEXTAREA'].includes(field.tagName)) {
+            const covered = () => {
+                const r = field.getBoundingClientRect();
+                const overlapsX = r.right > panel.left && r.left < panel.right;
+                return overlapsX ? r.bottom + 16 - panel.top : 0;
+            };
+            if (covered() > 0) field.scrollIntoView({ block: 'center' });
+            const overlap = covered();
+            if (overlap > 0) {
+                lifted = field.closest('.modal-dialog') || document.getElementById('root');
+                lifted.style.transition = 'transform 0.18s ease-out';
+                lifted.style.transform = `translateY(-${Math.ceil(overlap)}px)`;
+            }
         }
-        return () => { document.body.style.paddingBottom = ''; };
-    }, [open, layout]);
+        return () => {
+            document.body.style.paddingBottom = '';
+            if (lifted) lifted.style.transform = '';
+        };
+    }, [open, layout, label]);
 
     useEffect(() => () => clearInterval(repeatRef.current), []);
     useEffect(() => { if (!open) { setMode('lower'); setCapsLock(false); } }, [open]);
@@ -127,7 +148,9 @@ export default function TouchKeyboard({
     const rows = numeric ? NUM_ROWS[layout] : TEXT_ROWS[mode];
     const preview = masked ? '•'.repeat(valueRef.current.length) : valueRef.current.slice(-40);
 
-    return (
+    // Rendered into <body>: a transform on the page (used to lift it) would otherwise
+    // drag the fixed keyboard along with it.
+    return createPortal(
         <div ref={panelRef} className={`touch-kb ${numeric ? 'touch-kb--numeric' : ''}`} role="dialog" aria-label="On-screen keyboard"
             onPointerDown={e => e.preventDefault()}>
             <div className="touch-kb__bar">
@@ -174,6 +197,7 @@ export default function TouchKeyboard({
                     </div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
