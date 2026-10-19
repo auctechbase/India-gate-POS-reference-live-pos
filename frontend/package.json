@@ -1,0 +1,50 @@
+{
+  "name": "pos-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "POS React UI. Recovered from the production build's source maps.",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "build:backend": "cross-env BUILD_PATH=../backend/client/build GENERATE_SOURCEMAP=false react-scripts build"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "2.5.0",
+    "axios": "1.7.9",
+    "bootstrap": "5.3.3",
+    "datatables.net-dt": "2.1.8",
+    "jquery": "3.7.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-hot-toast": "2.5.1",
+    "react-js-loader": "0.1.3",
+    "react-redux": "9.2.0",
+    "react-router-dom": "6.28.1",
+    "react-scripts": "5.0.1",
+    "react-select": "5.9.0",
+    "react-simple-keyboard": "3.8.34",
+    "reactstrap": "9.2.3",
+    "select2": "4.1.0-rc.0",
+    "web-vitals": "2.1.4"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "cross-env": "7.0.3"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 electron version"
+    ]
+  }
+}

@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const rootDir = __dirname;
 const databaseDir = process.env.POS_DATABASE_DIR || path.join(rootDir, 'database');
 const tmpDir = process.env.POS_TMP_DIR || path.join(rootDir, 'tmp');
-const buildPath = path.join(rootDir, 'client/build');
+const buildPath = process.env.POS_BUILD_PATH || path.join(rootDir, 'client/build');
 
 fs.mkdirSync(databaseDir, { recursive: true });
 for (const dir of ['', 'products', 'notes', 'temp', 'reports', 'converted']) {
