@@ -12,12 +12,13 @@ compiled UI expects, because the React source is not in the repo.
 |---|---|
 | T1–T21 (T21: numbers are now parsed/compared as numbers; columns are still TEXT) | S3 unsigned zip updates (needs electron-updater + signed builds) |
 | S1, S2 (API only reachable from this computer), S4 (JWT secret rotated, cloud key moved to config), S5, S8, S10 | S6 app key in the URL, S9 GET for changes (the UI calls these URLs) |
-| B2, B3, B4, B5, B6 (partly: one query, sold line prices used), B7, B8, B9, B10, B11, B12, B13, B14, B15, B16, B17 (day-close, barcode label), B19, B20 | B1 server-side pricing, B18 integer cents, `order_items` table, Z-report numbering, category order as a setting |
+| B2, B3, B4, B5, B6 (partly: one query, sold line prices used), B7, B8, B9, B11, B12, B13, B14, B15, B16, B17 (day-close, barcode label), B19, B20 | B1 server-side pricing, B18 integer cents, `order_items` table, Z-report numbering, category order as a setting |
 
 What changed for the shop after updating:
 - **Everyone has to log in once** (the old, public JWT secret was replaced). The UI clears its
   local storage on 401, so the cloud **app key** has to be entered again too.
 - The API listens on `127.0.0.1` only. Set `POS_HOST=0.0.0.0` if another device must reach it.
+- Cloud sync still refills barcode products to 5000 (intentional while inventory isn't tracked).
 - Expected cash in the drawer now counts only the **cash** part of a payment.
 - A Z-report can be made once per register; after it, sales need a new "Day Opening".
 - Tax shown on receipts and reports is the tax **included** in the price (price × rate / (100 + rate)).
@@ -454,7 +455,8 @@ Want: an explicit `type: 'sale' | 'return'` per line and a separate refund flow.
 setting value are TEXT, so `"7" < "10"` is **false** (string comparison). Alerts don't fire.
 Every sale of a low product creates **another** notification (no de-duplication).
 
-**B10. Product sync resets stock to 5000.** `routes/products.js:491,501,513`
+**B10. Product sync resets stock to 5000.** *(Kept on purpose for now: the shop doesn't track
+inventory yet. Revisit before turning stock counting on — see `SYNC_STOCK` in `routes/products.js`.)* `routes/products.js:491,501,513`
 Every cloud sync sets `quantity: 5000` on existing products → real stock counts are destroyed.
 `create-custom` defaults to 3000. Want: sync never touches `quantity` of existing products.
 

@@ -24,6 +24,9 @@ const removeUpload = (file) => file && fs.promises.unlink(file.path).catch(() =>
 // Vegetables and fruits are sold by weight/name and may have no barcode.
 const barcodeOptional = (categoryName) => /vege|fruit/i.test(text(categoryName));
 
+// Stock given to products by the cloud sync (see /sync/:key).
+const SYNC_STOCK = '5000';
+
 const PRODUCT_COLUMNS = ['id', 'name', 'price', 'code', 'tax', 'sales_desc', 'image', 'quantity', 'pos', 'category_id'];
 
 router.get('/', async (req, res) => {
@@ -326,13 +329,16 @@ router.get('/sync/:key', fetchuser, async (req, res) => {
                 ? await Product.query().where('code', code).where('deleted', false).first()
                 : await Product.query().where('name', name).where('deleted', false).first();
             if (existing) {
-                // Never touch quantity here: the sync used to reset every stock to 5000.
+                // Intentional: the shop doesn't track inventory yet, so every sync refills
+                // barcode products to SYNC_STOCK. Remove `quantity` here once stock is counted
+                // for real, or each sync will overwrite the real counts.
                 if (code) {
                     await Product.query().findById(existing.id).patch({
                         name,
                         price,
                         category_id: category?.id ?? existing.category_id ?? null,
                         tax: taxText || null,
+                        quantity: SYNC_STOCK,
                     });
                 }
             } else {
@@ -342,7 +348,7 @@ router.get('/sync/:key', fetchuser, async (req, res) => {
                     price,
                     category_id: category?.id ?? null,
                     tax: taxText || null,
-                    quantity: '5000', // starting stock for products that are new in this shop
+                    quantity: SYNC_STOCK,
                 });
             }
         }
