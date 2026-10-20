@@ -1,22 +1,24 @@
 {
-  "name": "pos",
+  "name": "india-gate-pos",
+  "productName": "India Gate POS",
   "version": "1.0.1",
+  "description": "India Gate POS",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-packager . POS-ov --icon=pos.ico",
+    "build": "electron-packager . India-Gate-POS --icon=pos.ico",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dist": "electron-builder",
     "backend": "node backend/server.js"
   },
   "repository": {},
   "build": {
-    "appId": "pos.dftech.in",
-    "productName": "POS Infinity",
+    "appId": "com.indiagate.pos",
+    "productName": "India Gate POS",
     "win": {
       "icon": "pos.ico",
       "target": "nsis",
-      "shortcutName": "POS",
+      "shortcutName": "India Gate POS",
       "createDesktopShortcut": true
     },
     "files": [
@@ -30,7 +32,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "POScls",
   "devDependencies": {
     "electron": "^34.0.2",
     "electron-builder": "^25.1.8"

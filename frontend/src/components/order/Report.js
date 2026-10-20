@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { IMAGE_URL } from '../../config';
 import { useEffect, useRef, useState } from 'react'
 import $ from 'jquery'
 import { formatDatefromTimestamp } from '../../helpers/utils';
@@ -21,7 +22,7 @@ function Report() {
             columns:[
                 { title:'ID', data:'id'},
                 { title:'Generated On', data:null, render: row => formatDatefromTimestamp(row.date)},
-                { title:"Action", data:null, render:row => `<a target="_blank" class="btn btn-sm text-decoration-none btn-info" href="${process.env.REACT_APP_IMAGE_URI}/${row.path}" download type="button" data-index="${reports.indexOf(row)}">View</a>
+                { title:"Action", data:null, render:row => `<a target="_blank" class="btn btn-sm text-decoration-none btn-info" href="${IMAGE_URL}/${row.path}" download type="button" data-index="${reports.indexOf(row)}">View</a>
                 <span data-id="${row.id}" style="border:1px solid" class=" ms-4 btn btn-sm text-danger btn-rounded del">Delete</span>` },
             ],
             paging: true,

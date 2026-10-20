@@ -1,4 +1,5 @@
 import $ from 'jquery'
+import { BACKEND_URL } from '../config';
 import toast from 'react-hot-toast';
 import { dataURLtoFile } from './utils';
 // import html2canvas from 'html2canvas';
@@ -80,7 +81,7 @@ var Attachments =
             console.log(data,onDisk)
             let oModalBody=document.querySelector('.attachment-viewer.d-none');
             let oUL=document.querySelector('.attachment-viewer.d-none ul');
-            const path = process.env.REACT_APP_BACKEND_URI+ 'images/'
+            const path = BACKEND_URL + 'images/'
             if (data.length === 0) {
                 toast.error('Attachment not found!');
             }

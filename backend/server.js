@@ -17,7 +17,7 @@ const knex = Knex({
 Model.knex(knex);
 
 const app = express();
-// Only the app itself (http://localhost:5100) may call the API from a browser.
+// Only the app itself (http://localhost:<port>) may call the API from a browser.
 app.use(cors({ origin: [`http://localhost:${config.port}`, `http://127.0.0.1:${config.port}`] }));
 app.use(express.json({ limit: '5mb' }));
 app.use('/images', express.static(config.tmpDir));

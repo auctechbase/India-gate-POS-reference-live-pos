@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { IMAGE_URL } from '../../config';
 import TouchKeyboard from '../common/TouchKeyboard';
 import { useSelector } from 'react-redux'; 
 import { useGetProductsQuery, useTogglePOSMutation, useUpdateStockMutation } from '../../features/centerSlice';
@@ -41,7 +42,7 @@ function Inventory() {
     useEffect(()=> {
         if(gotProducts) { 
             setRowData(data.products)
-            setGrid(chunk(data.products.map( ({id, name, image, price, quantity, pos, ...rest }) => ({id, name, image:`${process.env.REACT_APP_IMAGE_URI}/${image}`, price, quantity, pos })), 3))
+            setGrid(chunk(data.products.map( ({id, name, image, price, quantity, pos, ...rest }) => ({id, name, image:`${IMAGE_URL}/${image}`, price, quantity, pos })), 3))
         } 
         return () => null
     },[ gotProducts, data ])

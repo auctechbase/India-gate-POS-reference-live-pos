@@ -1,11 +1,12 @@
 import { createSlice } from "@reduxjs/toolkit";
+import { BACKEND_URL } from '../config';
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import toast from "react-hot-toast";
 import { Warning } from "../helpers/utils";
 const withImg = localStorage.getItem('_pos_theme') ==='default' && JSON.parse(localStorage.getItem('img_disp')?? 'true');
 export const commonApiSlice = createApi({
 	reducerPath:'commonApi',
-	baseQuery: fetchBaseQuery({ baseUrl:process.env.REACT_APP_BACKEND_URI ,
+	baseQuery: fetchBaseQuery({ baseUrl:BACKEND_URL ,
 		prepareHeaders: ( headers, { getState }) => {   
 			headers.set('Accept','application/json' ) 
 			headers.set('Content-Type', 'application/json') 

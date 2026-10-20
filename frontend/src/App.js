@@ -1,4 +1,5 @@
 import axios from "axios"; 
+import { BACKEND_URL } from './config';
 import Themeroutes from "./routes/Router";
 
 import ShowError from './components/errors/ShowError';
@@ -25,7 +26,7 @@ if(token) {
 } else {
     headers = { 'Content-Type' : 'application/json' }
 }
-axios.defaults.baseURL=process.env.REACT_APP_BACKEND_URI??'http://localhost:5100';
+axios.defaults.baseURL=BACKEND_URL;
 
 axios.defaults.headers.common = headers;
 

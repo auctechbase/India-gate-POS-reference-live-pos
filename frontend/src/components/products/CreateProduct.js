@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { IMAGE_URL } from '../../config';
 import TouchKeyboard from '../common/TouchKeyboard';
 import CreatableSelect from 'react-select/creatable'
 import { useDispatch, useSelector } from 'react-redux';
@@ -197,7 +198,7 @@ function CreateProduct() {
                             <h4 className="mt-2">Create Product</h4>
                             <Link
                                 download={"Format_Products_Import_POS.xls"}
-                                to={'http://localhost:5100/images/Format_Products_Import_POS.xlsx'}
+                                to={`${IMAGE_URL}/Format_Products_Import_POS.xlsx`}
                                 className="btn btn-sm btn-warning btn-rounded"
                                 style={{border:"1px solid"}}
                             >

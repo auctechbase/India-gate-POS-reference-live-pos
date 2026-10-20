@@ -32,7 +32,7 @@ app.on('ready', async () =>
         },
     });
     
-    mainWindow.loadURL('http://localhost:5100');
+    mainWindow.loadURL(`http://localhost:${config.port}`);
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         return { action: 'deny' };
     });
@@ -67,7 +67,7 @@ app.on('ready', async () =>
                 preload: path.join(__dirname, 'preload.js')
             },
         });
-        customerWindow.loadURL("http://localhost:5100/#/pos/customer");
+        customerWindow.loadURL(`http://localhost:${config.port}/#/pos/customer`);
         customerWindow.setFullScreen(true)
         windows.push(customerWindow)
     } else {

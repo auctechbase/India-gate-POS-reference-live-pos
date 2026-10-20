@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { BACKEND_URL } from '../../config';
 import TouchKeyboard from '../common/TouchKeyboard';
 import toast from 'react-hot-toast';
 import axios from 'axios';
@@ -110,7 +111,7 @@ export default function Notes() {
                                                     <tr key={item.id}>
                                                         <td>{++i}</td>
                                                         <td> {currency} {item.amount} </td>
-                                                        <td><img src={process.env.REACT_APP_BACKEND_URI+'images/'+item.image} style={{ borderRadius:0,height:60, width:100 }} alt='' /></td>
+                                                        <td><img src={BACKEND_URL+'images/'+item.image} style={{ borderRadius:0,height:60, width:100 }} alt='' /></td>
                                                         <td>
                                                             <button className={`btn btn-danger btn-sm`} onClick={()=>deleteNote(item.id)} >
                                                                 Delete

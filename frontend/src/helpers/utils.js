@@ -1,4 +1,5 @@
 import $ from 'jquery'
+import { IMAGE_URL } from '../config';
 import toast from 'react-hot-toast';
 const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const validate = (fields,exceptions=[]) => {
@@ -101,7 +102,7 @@ export const dealHost = imgPath => {
     if(imgPath==null) return '/images/default.png';
     if(imgPath?.indexOf('https')!== -1) return imgPath;
     if(imgPath?.indexOf('data:image') !== -1) return imgPath
-    return process.env.REACT_APP_IMAGE_URI +'/'+ imgPath
+    return IMAGE_URL +'/'+ imgPath
 }
 
 export const getCurrentDate = (delimiter='-') => {

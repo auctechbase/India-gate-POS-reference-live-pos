@@ -11,12 +11,19 @@ What could not be recovered and was rebuilt:
 - `public/index.html`: rebuilt from the built `index.html`.
 - Images: copied from the build; `profile.png` and `default.png` were embedded in the JS.
 
+## Backend address
+
+The UI talks to the address it was loaded from (`src/config.js`), so no port is baked into
+the build. The backend listens on **5200** by default (`POS_PORT` to change it); the original
+POS uses 5100, so both can run on the same computer. `.env.development` points `npm start`
+(dev server on :3000) at the backend.
+
 ## Commands
 
 ```bash
 cd frontend
 npm install
-npm start               # dev server on :3000, talks to the backend on :5100
+npm start               # dev server on :3000, talks to the backend on :5200
 npm run build:backend   # production build into backend/client/build (what Electron serves)
 ```
 

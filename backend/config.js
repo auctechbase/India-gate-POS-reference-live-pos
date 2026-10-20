@@ -40,7 +40,8 @@ function findLogoPath() {
 }
 
 module.exports = {
-    port: Number(process.env.POS_PORT) || 5100,
+    // 5200, not 5100: the original POS uses 5100 and both can run on the same computer.
+    port: Number(process.env.POS_PORT) || 5200,
     // Only this computer may call the API. Set POS_HOST=0.0.0.0 to expose it on the network.
     host: process.env.POS_HOST || '127.0.0.1',
     rootDir,

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { BACKEND_URL } from '../config';
 
 let userToken = localStorage.getItem('pos-token') ?? null
 const isAdmin = JSON.parse(localStorage.getItem('isAdmin'))??false;
@@ -19,7 +20,7 @@ const headers = {
 let stockAlert = JSON.parse(localStorage.getItem('_pos_stock_alert')??'0');
 if(!stockAlert) {
     if(userToken) {
-        axios.get(process.env.REACT_APP_BACKEND_URI+ `config/stock-alert`, headers).then(({data}) => {
+        axios.get(BACKEND_URL + `config/stock-alert`, headers).then(({data}) => {
             if(data.status && data.stock) {
                 localStorage.setItem('_pos_stock_alert', JSON.stringify(data.stock))
             }
