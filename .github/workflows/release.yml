@@ -1,0 +1,88 @@
+# Builds the Windows installer and publishes it as a release download.
+#
+# Run it: push a tag like v1.0.2 (git tag v1.0.2 && git push origin v1.0.2), or press
+# "Run workflow" on the Actions tab.
+#
+# Where the installer goes:
+#   - If the repository variable RELEASES_REPO (e.g. auctechbase/india-gate-pos-download) and the
+#     secret RELEASES_TOKEN are set, it is published to that PUBLIC repo, so anyone can download:
+#       https://github.com/<RELEASES_REPO>/releases/latest/download/India-Gate-POS-Setup.exe
+#   - Otherwise it is attached to a release in this (private) repo: only people with access can
+#     download it.
+name: Release Windows installer
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version for this release (e.g. 1.0.2). Empty = version from package.json'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Work out the version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}";
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then V="${{ github.event.inputs.version }}";
+          else V="$(node -p "require('./package.json').version")"; fi
+          npm version "$V" --no-git-tag-version --allow-same-version
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --omit=dev
+
+      - name: Build the UI from source
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build:backend
+        env:
+          CI: false
+
+      - name: Build the installer
+        run: npm run dist:win
+
+      - name: Publish to the public download repo
+        if: ${{ vars.RELEASES_REPO != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ vars.RELEASES_REPO }}
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: India Gate POS ${{ steps.version.outputs.version }}
+          files: dist/India-Gate-POS-Setup.exe
+          make_latest: true
+
+      - name: Attach to a release in this repo
+        if: ${{ vars.RELEASES_REPO == '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: India Gate POS ${{ steps.version.outputs.version }}
+          files: dist/India-Gate-POS-Setup.exe
+          make_latest: true
+
+      - name: Keep a copy as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: India-Gate-POS-Setup-${{ steps.version.outputs.version }}
+          path: dist/India-Gate-POS-Setup.exe

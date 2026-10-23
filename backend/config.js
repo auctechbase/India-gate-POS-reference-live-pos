@@ -6,8 +6,17 @@ const crypto = require('crypto');
 // Values can be overridden with environment variables.
 
 const rootDir = __dirname;
-const databaseDir = process.env.POS_DATABASE_DIR || path.join(rootDir, 'database');
-const tmpDir = process.env.POS_TMP_DIR || path.join(rootDir, 'tmp');
+
+// Inside the installed Electron app, keep data in the user's AppData folder
+// (%APPDATA%/India Gate POS): the program folder isn't writable and is replaced on update.
+// Run with plain `node backend/server.js` it stays in backend/database and backend/tmp.
+function electronDataDir() {
+    if (!process.versions.electron) return null;
+    try { return require('electron').app.getPath('userData'); } catch (e) { return null; }
+}
+const dataDir = electronDataDir();
+const databaseDir = process.env.POS_DATABASE_DIR || (dataDir ? path.join(dataDir, 'database') : path.join(rootDir, 'database'));
+const tmpDir = process.env.POS_TMP_DIR || (dataDir ? path.join(dataDir, 'files') : path.join(rootDir, 'tmp'));
 const buildPath = process.env.POS_BUILD_PATH || path.join(rootDir, 'client/build');
 
 fs.mkdirSync(databaseDir, { recursive: true });

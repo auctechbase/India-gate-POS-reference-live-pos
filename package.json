@@ -9,7 +9,9 @@
     "build": "electron-packager . India-Gate-POS --icon=pos.ico",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dist": "electron-builder",
-    "backend": "node backend/server.js"
+    "backend": "node backend/server.js",
+    "rebuild:backend": "electron-rebuild --module-dir backend",
+    "dist:win": "npm run rebuild:backend && electron-builder --win --publish never"
   },
   "repository": {},
   "build": {
@@ -17,22 +19,50 @@
     "productName": "India Gate POS",
     "win": {
       "icon": "pos.ico",
-      "target": "nsis",
-      "shortcutName": "India Gate POS",
-      "createDesktopShortcut": true
+      "target": "nsis"
     },
     "files": [
+      "**/*",
+      "!frontend/**",
+      "!docs/**",
+      "!dist/**",
+      "!.github/**",
+      "!backend/database/**",
+      "!backend/tmp/**",
       "!**/node_modules/**/*.md",
       "!**/node_modules/**/test/**",
       "!**/node_modules/**/example/**",
       "!tests/**",
-      "!storage/logs"
-    ]
+      "!storage/logs",
+      "!backend/client/build/**/*.map",
+      {
+        "from": "backend/node_modules",
+        "to": "backend/node_modules",
+        "filter": [
+          "**/*",
+          "!**/*.md",
+          "!**/test/**",
+          "!**/example/**"
+        ]
+      }
+    ],
+    "artifactName": "India-Gate-POS-Setup.${ext}",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "India Gate POS"
+    }
   },
   "keywords": [],
-  "author": "",
+  "author": "India Gate",
   "license": "ISC",
   "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
     "electron": "^34.0.2",
     "electron-builder": "^25.1.8"
   },
