@@ -68,11 +68,30 @@ jobs:
           name: India-Gate-POS-Setup-${{ steps.version.outputs.version }}
           path: dist/India-Gate-POS-Setup.exe
 
+      # Clean up the variable (a pasted value can end in a space, line break or "."), then check
+      # the token can see that repo, so a mistake gives a clear message instead of "404".
+      - name: Check the download repo and token
+        id: target
+        if: ${{ vars.RELEASES_REPO != '' }}
+        shell: bash
+        env:
+          RAW_REPO: ${{ vars.RELEASES_REPO }}
+          TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          REPO="$(printf '%s' "$RAW_REPO" | tr -d '[:space:]' | sed -e 's#^https://github.com/##' -e 's#[./]*$##')"
+          echo "Download repo: '$REPO'"
+          if [ -z "$TOKEN" ]; then echo "::error::Secret RELEASES_TOKEN is empty or missing"; exit 1; fi
+          CODE=$(curl -s -o perms.json -w '%{http_code}' -H "Authorization: Bearer $(printf '%s' "$TOKEN" | tr -d '[:space:]')" "https://api.github.com/repos/$REPO")
+          if [ "$CODE" = "401" ]; then echo "::error::RELEASES_TOKEN is not a valid token (expired, or copied wrong)"; exit 1; fi
+          if [ "$CODE" != "200" ]; then echo "::error::The token cannot see $REPO (HTTP $CODE). Give the token access to this repository."; exit 1; fi
+          if ! grep -q '"push": *true' perms.json; then echo "::error::The token can see $REPO but cannot write to it. Set the token's Contents permission to Read and write."; exit 1; fi
+          echo "repo=$REPO" >> "$GITHUB_OUTPUT"
+
       - name: Publish to the public download repo
         if: ${{ vars.RELEASES_REPO != '' }}
         uses: softprops/action-gh-release@v2
         with:
-          repository: ${{ vars.RELEASES_REPO }}
+          repository: ${{ steps.target.outputs.repo }}
           token: ${{ secrets.RELEASES_TOKEN }}
           tag_name: v${{ steps.version.outputs.version }}
           name: India Gate POS ${{ steps.version.outputs.version }}
