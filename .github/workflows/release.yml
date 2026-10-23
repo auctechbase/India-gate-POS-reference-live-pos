@@ -61,6 +61,13 @@ jobs:
       - name: Build the installer
         run: npm run dist:win
 
+      # First, so the installer can be downloaded from the run even if publishing fails.
+      - name: Keep a copy as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: India-Gate-POS-Setup-${{ steps.version.outputs.version }}
+          path: dist/India-Gate-POS-Setup.exe
+
       - name: Publish to the public download repo
         if: ${{ vars.RELEASES_REPO != '' }}
         uses: softprops/action-gh-release@v2
@@ -81,8 +88,3 @@ jobs:
           files: dist/India-Gate-POS-Setup.exe
           make_latest: true
 
-      - name: Keep a copy as a build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: India-Gate-POS-Setup-${{ steps.version.outputs.version }}
-          path: dist/India-Gate-POS-Setup.exe
