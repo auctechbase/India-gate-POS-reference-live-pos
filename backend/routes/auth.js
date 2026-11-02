@@ -61,6 +61,17 @@ router.post('/signup', [
     }
 });
 
+// First-run check for the login screen: true while no user exists yet, so the UI can show
+// "Create admin account" instead of a login form nobody can use.
+router.get('/setup', async (req, res) => {
+    try {
+        const { count } = await User.query().count('id as count').first();
+        return res.json({ status: true, needsSetup: Number(count) === 0 });
+    } catch (e) {
+        return res.status(500).json({ status: false, message: e.message });
+    }
+});
+
 // Authenticate the user
 router.post('/login', [
     body('email', 'Invalid credentials!').isLength({ min: 5 }),
