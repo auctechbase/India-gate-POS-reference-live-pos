@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkpos_frontend||=[]).push([[63],{4444(e,r,n){n.r(r),n.d(r,{default:()=>s});n(9950);var t=n(4414);function s(){return(0,t.jsx)(t.Fragment,{children:"Register"})}}}]);

@@ -68,7 +68,7 @@ async function generatePdf(data){
                                         <tr><td><b>Report Time</b>:</td><td></td><td>${new Date().toLocaleTimeString()}</td></tr>
                                         <tr><td><b>Transactions</b>:</td><td></td><td>${data.number_of_transactions}</td></tr>
                                         <tr><td><b>Total Products</b>:</td><td></td><td>${data.total_products}</td></tr>
-                                        <tr><td><b>Returns</b>:</td><td></td><td>${data.return_amount < 0 ? '-'+data.currency+Math.abs(data.return_amount): data.currency+ data.return_amount}</td></tr>
+                                        <tr><td><b>Returns</b>:</td><td></td><td>${data.return_amount < 0 ? '-'+data.currency+Math.abs(data.return_amount).toFixed(2): data.currency+ Number(data.return_amount).toFixed(2)}</td></tr>
                                         <tr><td><b>Discounts</b>:</td><td></td><td>${data.currency}${data.discounts < 0? 0.00: data.discounts.toFixed(2)}</td></tr>
                                         <tr><td><b>Cash Payments</b>:</td><td></td><td>${data.currency}${data.cash.toFixed(2)}</td></tr>
                                         <tr><td><b>Card Payments</b>:</td><td></td><td>${data.currency}${data.card.toFixed(2)}</td></tr>
@@ -111,48 +111,24 @@ async function generatePdf(data){
     `;
 }
 
-async function runCommand(command) {
-    const { exec } = require('child_process');
-    const util = require('util');
-    const execPromise = util.promisify(exec);
-    try {
-        const { stdout, stderr } = await execPromise(command);
-        if (stderr) {
-            return {output:`⚠️ Command executed with warnings: ${stderr}`};
-        }        
-        return {output:`✅ Command successful:\n${stdout}`};
-
-    } catch (error) { 
-        return {output:`❌ Command failed: ${error.message}`};
-    }
-}
-
 async function uploadFile(filePath, uploadUrl, clientName) {
     const axios = require('axios');
-    const fs = require('fs')
-    const FormData = require("form-data");
-    const path = require('path')
+    const fs = require('fs');
+    const FormData = require('form-data');
     try {
-        const fileStream = fs.createReadStream(filePath);
         const formData = new FormData();
-        formData.append("file", fileStream);
+        formData.append("file", fs.createReadStream(filePath));
         formData.append("client", clientName);
-        formData.append("path", path.resolve(__dirname, './database/db.sqlite'));
-
-        const headers = {
-            ...formData.getHeaders()
-        };
-        const {data} = await axios.post(uploadUrl, formData, { headers });
-
-        return data.status;
-
+        formData.append("path", filePath);
+        const { data } = await axios.post(uploadUrl, formData, {
+            headers: formData.getHeaders(),
+            maxBodyLength: Infinity,
+            timeout: 5 * 60 * 1000,
+        });
+        return Boolean(data?.status);
     } catch (error) {
         console.error("Error uploading file:", error.message);
-        if (error.message.includes('column')) {
-            await runCommand(`npm install form-data dotenv`); 
-            return { status: false, relaunch:true, message: "Module installed, please restart." };
-        }
-        return false
+        return false;
     }
 }
 

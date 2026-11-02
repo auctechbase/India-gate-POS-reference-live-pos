@@ -5,32 +5,34 @@ const bwipjs = require('bwip-js');
 const server = require('./backend/server');
 const { ipcMain } = require("electron");
 const fs = require('fs');
-const imgPath = path.join(__dirname,'backend/client/build/static/media/logo.2d2e09f65e21f53b1f9f.png')
-const b64 = fs.readFileSync(imgPath, 'base64');
+const config = require('./backend/config');
+// The logo file name contains a build hash that changes with every UI update; look it up
+// instead of hard-coding it (the app used to crash on start after an update).
+const logoPath = config.findLogoPath();
+const b64 = logoPath ? fs.readFileSync(logoPath, 'base64') : '';
 // idVendor 8137
 // idProduct 8214
 let mainWindow;
-let backendProcess;
 let windows=[]
 
-app.on('ready', () => 
+app.on('ready', async () => 
 {
-    server.start();
+    await server.start();
     const { width, height } = electron.screen.getPrimaryDisplay().workAreaSize
     mainWindow = new BrowserWindow({
         width,
         height,
-        devTools:false,
         autoHideMenuBar: true,
         scrollBounce:true,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
-            nodeIntegration: true, // Prevent direct access to Node.js in the renderer
+            nodeIntegration: false, // the page only gets what preload.js exposes
+            devTools: false,
         },
     });
     
-    mainWindow.loadURL('http://localhost:5100');
+    mainWindow.loadURL(`http://localhost:${config.port}`);
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         return { action: 'deny' };
     });
@@ -41,8 +43,10 @@ app.on('ready', () =>
         mainWindow.setFullScreen(true)
     });
     mainWindow.on('closed', () => {
-        mainWindow = null;        
-        if (backendProcess) backendProcess.kill();
+        mainWindow = null;
+        // Close the customer display too, otherwise the app never quits.
+        windows.forEach(w => { if (!w.isDestroyed()) w.close() });
+        windows = [];
     });
 
 
@@ -58,12 +62,12 @@ app.on('ready', () =>
             fullscreen: true, // Optional: Make it fullscreen on the display
             alwaysOnTop: true, // Optional: Keep it on top
             webPreferences: {
-                nodeIntegration: true,
+                nodeIntegration: false,
                 contextIsolation: true,
                 preload: path.join(__dirname, 'preload.js')
             },
         });
-        customerWindow.loadURL("http://localhost:5100/#/pos/customer");
+        customerWindow.loadURL(`http://localhost:${config.port}/#/pos/customer`);
         customerWindow.setFullScreen(true)
         windows.push(customerWindow)
     } else {
@@ -105,11 +109,11 @@ ipcMain.on('relaunch', () => {
     app.exit()
 })
 
-ipcMain.on('reload', (event, content) => {
+ipcMain.on('reload', (event, content = {}) => {
     const {id} = content;
     delete content.id;
     windows.forEach( win => {
-        if(win) {
+        if(win && !win.isDestroyed()) {
             if(content.manual) {
                 win.webContents.send('data-received', { manual:true })
             } else {
@@ -120,8 +124,17 @@ ipcMain.on('reload', (event, content) => {
 })
 
 ipcMain.on('close-window', () => {
-    mainWindow.close()
-    windows.forEach(w => w.close())
+    windows.forEach(w => { if (!w.isDestroyed()) w.close() })
+    if (mainWindow) mainWindow.close()
+})
+
+// preload.js exposes getPrinters(); there was no handler, so the call always failed.
+ipcMain.handle('get-printers', async (event) => {
+    try {
+        return await event.sender.getPrintersAsync();
+    } catch (error) {
+        return [];
+    }
 })
 
 ipcMain.on("print-content", (event, content) => {
@@ -187,9 +200,8 @@ ipcMain.on(`print-report`, async(event, html) => {
 ipcMain.on("generate-barcode", async (event, content)=> {
     try {
         let {name,price,code} = content
-        if(name.length > 38 ){
-            // name = name.splice(0,34) + '...';
-        }
+        const currency = content.currency || '€';
+        name = String(name ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
         const svg = await bwipjs.toSVG({
             bcid: "code128",
@@ -212,7 +224,7 @@ ipcMain.on("generate-barcode", async (event, content)=> {
                     <div style="font-size:0.8rem!important;margin-bottom:8px;padding-bottom:2px;border-bottom:2px solid;font-weight:600">${name}</div>
                     ${svg}
                     <div style="text-align:center;display:grid;place-content:center;margin-top:-25px">
-                        <h2 style="font-size:2rem;font-weight:600">€${price}</h2>
+                        <h2 style="font-size:2rem;font-weight:600">${currency}${price}</h2>
                     </div>
                 </div>
             </body>

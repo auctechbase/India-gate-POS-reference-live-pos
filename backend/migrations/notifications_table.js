@@ -1,7 +1,6 @@
-const knex = require('knex');
-
 exports.up = async function (knex) {
 
+    if (await knex.schema.hasTable('web_notifications')) return;
     await knex.schema.createTable('web_notifications', (table) => {
         table.increments('id').primary(); // Auto-incrementing ID
         table.string('content');

@@ -1,26 +1,20 @@
-const knex = require('knex');
-
+// Creates `orders` with its current columns. Older installs got the same result through
+// `_drop_columns_from_orders.js` and `add_cash_register_id_to_orders_table.js`, which run before
+// this file alphabetically and therefore do nothing on a fresh install.
 exports.up = async function (knex) {
-
+    if (await knex.schema.hasTable('orders')) return;
     await knex.schema.createTable('orders', (table) => {
         table.increments('id').primary(); // Auto-incrementing ID
-        table.bigInteger('customer_id'); 
-        table.bigInteger('cashier_id'); 
+        table.bigInteger('cashier_id');
         table.string('amount').nullable();
-        table.string('ref_no');
         table.string('session_id').nullable();
-        table.string('pos_shop');
-        table.string('receipt_number').nullable();
         table.string('payment_mode').defaultTo('cash');
-        table.string('transaction_type').defaultTo('cash'); // credit karna tha isko
+        table.string('transaction_type').defaultTo('cash');
+        table.bigInteger('cash_register_id').nullable();
         table.timestamps(true,true);
     });
-
 };
 
 exports.down = async function (knex) {
-    // Drop the `users` table
     await knex.schema.dropTableIfExists('orders');
 };
-
- 

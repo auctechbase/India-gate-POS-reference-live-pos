@@ -1,7 +1,7 @@
-const knex = require('knex');
-
+// Creates `products` with its current columns (`deleted` included, see
+// add_deleted_to_products_table.js which runs before this file on a fresh install).
 exports.up = async function (knex) {
-    // Create the `users` table
+    if (await knex.schema.hasTable('products')) return;
     await knex.schema.createTable('products', (table) => {
         table.increments('id').primary(); // Auto-incrementing ID
         table.string('name').notNullable().index();
@@ -16,13 +16,10 @@ exports.up = async function (knex) {
         table.longText('sales_desc').nullable();
         table.string('tax').nullable();
         table.string('code').nullable().index();
+        table.boolean('deleted').defaultTo(false);
     });
-
 };
 
 exports.down = async function (knex) {
-    // Drop the `users` table
     await knex.schema.dropTableIfExists('products');
 };
-
-       

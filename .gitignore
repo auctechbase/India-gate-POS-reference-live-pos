@@ -6,3 +6,4 @@ POS-v3/
 POS-v3.zip
 *.log
 .DS_Store
+dist/

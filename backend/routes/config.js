@@ -1,148 +1,124 @@
 const express = require("express");
-const path = require('path')
 const Setting = require('../models/Setting');
 const Notification = require('../models/Notification');
 const router = express.Router();
 const fetchuser = require('../middlewares/loggedIn');
+const config = require('../config');
 const { uploadFile, getCurrentDate } = require("../utils");
+const { STORE_KEYS, getStoreSetting, setStoreSetting } = require('../utils/settings');
 
-let error = { status : false, message:'Something went wrong!' }
-  
-router.get('/stock-alert', fetchuser, async(req, res) => {
+// The user's own settings, with shop-wide keys (stock alert, inventory) taken from the shop.
+async function settingsFor(userId) {
+    const own = await Setting.query().where('user_id', userId).whereNotIn('key', STORE_KEYS).select('key', 'value');
+    for (const key of STORE_KEYS) {
+        const store = await getStoreSetting(key);
+        if (store) own.push({ key, value: store.value });
+    }
+    return own;
+}
+
+router.get('/stock-alert', fetchuser, async (req, res) => {
     try {
-        const alert = await Setting.query().where('key', "STOCK_ALERT").where('user_id', req.body.myID ).first();
-        if(alert) {
-            return res.json({status:true, stock: JSON.parse(alert.value)});
-        } 
+        const alert = await getStoreSetting('STOCK_ALERT');
+        if (!alert) return res.json({ status: false, stock: 0 });
+        let stock = alert.value;
+        try { stock = JSON.parse(alert.value); } catch (e) {}
+        return res.json({ status: true, stock });
     } catch (error) {
-        return res.json({status:false, alert:0})
+        return res.json({ status: false, stock: 0 })
     }
 })
 
-router.post('/update-stock-alert', fetchuser, async (req,res) => {
-    try {  
-        const alert = await Setting.query().where('key', "STOCK_ALERT").where('user_id', req.body.myID ).first();
-        if(alert) {
-            await Setting.query().where('user_id', req.body.myID).where('key', 'STOCK_ALERT').patch({
-                value: req.body.stock
-            });
-            return res.json({status:true, message:"Stock alert updated!"});
-        } 
-        await Setting.query().insert({
-            user_id: req.body.myID,
-            key: "STOCK_ALERT",
-            value: req.body.stock  
-        });
-
-        return res.json({status:true, message:"Stock alert created!" });
-
+router.post('/update-stock-alert', fetchuser, async (req, res) => {
+    try {
+        const result = await setStoreSetting(req.user.id, 'STOCK_ALERT', String(req.body.stock ?? ''));
+        return res.json({ status: true, message: result === 'updated' ? "Stock alert updated!" : "Stock alert created!" });
     } catch (e) {
-        console.log("exception occured: ",e)
-        error.message = e.message
-        return res.status(400).json(error)        
+        console.log("exception occured: ", e)
+        return res.status(400).json({ status: false, message: e.message })
     }
 });
 
-router.get('/clear-notifications', fetchuser, async(req,res) => {
+router.get('/clear-notifications', fetchuser, async (req, res) => {
     try {
-        await Notification.query().where('user_id', req.body.myID).delete();
-        return res.json({status:true})
+        await Notification.query().where('user_id', req.user.id).delete();
+        return res.json({ status: true })
     } catch (error) {
         console.log(error.message);
-        return res.json({status:false})
+        return res.json({ status: false })
     }
 })
 
-router.get('/notifications', fetchuser, async(req,res)=> {
+router.get('/notifications', fetchuser, async (req, res) => {
     try {
-        return res.json({status:true, notifications: await Notification.query().where('user_id', req.body.myID)})
-    }catch (err) {
+        return res.json({ status: true, notifications: await Notification.query().where('user_id', req.user.id) })
+    } catch (err) {
         console.log(err.message)
-        return res.json({status:false, notifications:[]})
+        return res.json({ status: false, notifications: [] })
     }
 })
 
-router.get('/notification/delete/:id', async(req,res) => {
+router.get('/notification/delete/:id', fetchuser.optional, async (req, res) => {
     try {
-        await Notification.query().where('id',req.params.id).delete();
-        return res.json({status:true})
+        await Notification.query().where('id', req.params.id).delete();
+        return res.json({ status: true })
     } catch (error) {
-        return res.json({status:false})
+        return res.json({ status: false })
     }
 })
 
-router.get('/inventory/:state', fetchuser, async(req,res) => {
+router.get('/inventory/:state', fetchuser, async (req, res) => {
     try {
-        const alert = await Setting.query().where('key', "INVENTORY_IS").where('user_id', req.body.myID ).first();
-        if(alert) {
-            await Setting.query().where('user_id', req.body.myID).where('key', 'INVENTORY_IS').patch({
-                value: req.params.state
-            });
-            return res.json({status:true});
-        } 
-        await Setting.query().insert({
-            user_id: req.body.myID,
-            key: "INVENTORY_IS",
-            value: req.params.state  
-        });
-        return res.json({status:true})
+        const state = req.params.state === 'true' ? 'true' : 'false';
+        await setStoreSetting(req.user.id, 'INVENTORY_IS', state);
+        return res.json({ status: true })
     } catch (error) {
         console.log(error.message)
-        return res.json({status:false})
+        return res.json({ status: false })
     }
 })
 
-router.get('/settings/:key', fetchuser, async( req, res ) => {
-    return res.json({status:true, [req.params.key]: await Setting.query().where('user_id', req.body.myID).where('key',req.params.key).first('value')??''})
+router.get('/settings/:key', fetchuser, async (req, res) => {
+    try {
+        const key = req.params.key;
+        const setting = STORE_KEYS.includes(key)
+            ? await getStoreSetting(key)
+            : await Setting.query().where('user_id', req.user.id).where('key', key).first();
+        return res.json({ status: true, [key]: setting ? { value: setting.value } : '' })
+    } catch (err) {
+        return res.json({ status: false, [req.params.key]: '' })
+    }
 });
 
-router.get(`/settings`, fetchuser, async(req, res) => {
+router.get(`/settings`, fetchuser, async (req, res) => {
     try {
-        return res.json({
-            status:true, 
-            settings: await Setting.query().where('user_id', req.body.myID ).select('key', 'value') 
-        })
+        return res.json({ status: true, settings: await settingsFor(req.user.id) })
     } catch (err) {
-        res.json({status:false, settings:[]})
+        res.json({ status: false, settings: [] })
     }
 })
 
-router.get(`/upload-db/:client`, fetchuser, async(req, res) => {
+router.get(`/upload-db/:client`, fetchuser, async (req, res) => {
     try {
-        
-        const filePath = path.join(__dirname, "../database/db.sqlite");
-        const uploadURL = 'https://pos.dftech.in/upload-db'
-        const uploaded = await uploadFile(filePath, uploadURL, req.params.client)
-        if(uploaded) {
-
+        const uploaded = await uploadFile(config.dbPath, `${config.cloudUrl}/upload-db`, req.params.client)
+        if (uploaded) {
             const today = getCurrentDate('ymd')
-            const last = await Setting.query().where('key', "LAST_UPDATED").where('user_id', req.body.myID ).first();
-            if(last) {
-                await Setting.query().where('user_id', req.body.myID).where('key', 'LAST_UPDATED').patch({
-                    value: today
-                });
-                return res.json({status:true, settings: await Setting.query().where('user_id', req.body.myID ).select('key', 'value') });
+            const last = await Setting.query().where('key', "LAST_UPDATED").where('user_id', req.user.id).first();
+            if (last) {
+                await Setting.query().findById(last.id).patch({ value: today });
             } else {
-                await Setting.query().insert({
-                    user_id: req.body.myID,
-                    key: "LAST_UPDATED",
-                    value: today  
-                });
+                await Setting.query().insert({ user_id: req.user.id, key: "LAST_UPDATED", value: today });
             }
-            return res.json({
-                status:true,
-                settings: await Setting.query().where('user_id', req.body.myID ).select('key', 'value') 
-            })
+            return res.json({ status: true, settings: await settingsFor(req.user.id) })
         }
-        
         return res.json({
-            status:false,
+            status: false,
             message: "Failed to upload backup!",
-            settings: await Setting.query().where('user_id', req.body.myID ).select('key', 'value') 
+            settings: await settingsFor(req.user.id)
         })
     } catch (err) {
         console.log(err.message)
-        res.json({status:false})
+        res.json({ status: false, message: err.message })
     }
 })
 

@@ -29,12 +29,13 @@ class Order extends Model {
                     to: 'users.id'
                 }
             },
+            // The session row written for this order (not just any session of the same register).
             session: {
                 relation: Model.HasOneRelation,
                 modelClass: CashierSession,
                 join: {
-                    from: 'orders.cash_register_id',
-                    to: 'cashier_sessions.cash_register_id'
+                    from: 'orders.id',
+                    to: 'cashier_sessions.order_id'
                 }
             },
             register: {

@@ -1,7 +1,6 @@
-const knex = require('knex');
-
 exports.up = async function (knex) {
 
+    if (await knex.schema.hasTable('cash_register')) return;
     await knex.schema.createTable('cash_register', (table) => {
         table.increments('id').primary(); // Auto-incrementing ID
         table.string('opening_cash').nullable();

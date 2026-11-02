@@ -1,36 +1,68 @@
 {
-  "name": "pos",
+  "name": "india-gate-pos",
+  "productName": "India Gate POS",
   "version": "1.0.1",
+  "description": "India Gate POS",
   "main": "main.js",
   "scripts": {
-    "start": "electron . && nodemon backend/server.js",
-    "build": "electron-packager . POS-ov --icon=pos.ico",
+    "start": "electron .",
+    "build": "electron-packager . India-Gate-POS --icon=pos.ico",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "backend": "node backend/server.js",
+    "rebuild:backend": "electron-rebuild --module-dir backend",
+    "dist:win": "npm run rebuild:backend && electron-builder --win --publish never"
   },
   "repository": {},
   "build": {
-    "appId": "pos.dftech.in",
-    "productName": "POS Infinity",
+    "appId": "com.indiagate.pos",
+    "productName": "India Gate POS",
     "win": {
       "icon": "pos.ico",
-      "target": "nsis",
-      "shortcutName": "POS",
-      "createDesktopShortcut": true
+      "target": "nsis"
     },
     "files": [
+      "**/*",
+      "!frontend/**",
+      "!docs/**",
+      "!dist/**",
+      "!.github/**",
+      "!backend/database/**",
+      "!backend/tmp/**",
       "!**/node_modules/**/*.md",
       "!**/node_modules/**/test/**",
       "!**/node_modules/**/example/**",
       "!tests/**",
-      "!storage/logs"
-    ]
+      "!storage/logs",
+      "!backend/client/build/**/*.map",
+      {
+        "from": "backend/node_modules",
+        "to": "backend/node_modules",
+        "filter": [
+          "**/*",
+          "!**/*.md",
+          "!**/test/**",
+          "!**/example/**"
+        ]
+      }
+    ],
+    "artifactName": "India-Gate-POS-Setup.${ext}",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "India Gate POS"
+    }
   },
   "keywords": [],
-  "author": "",
+  "author": "India Gate",
   "license": "ISC",
-  "description": "POScls",
   "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
     "electron": "^34.0.2",
     "electron-builder": "^25.1.8"
   },

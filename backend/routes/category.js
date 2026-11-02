@@ -1,18 +1,15 @@
 const express = require("express");
-const Category = require('../models/Category');
-// const Currency = require('../models/Currency');
+const Category = require('../models/ProductCategory');
+const Product = require('../models/Product');
 const router = express.Router();
-const { body, validationResult }=require('express-validator')
 
-const fetchuser= require('../middlewares/loggedIn');
+const fetchuser = require('../middlewares/loggedIn');
+const toBool = (value) => !(value === false || value === 'false' || value === 0 || value === '0');
 
-let error = { status : false, message:'Something went wrong!' }
-let output = { status : true }
-  
-router.get('/', async (req,res) => {
-    try {  
+router.get('/', async (req, res) => {
+    try {
         let categories = Category.query()
-        if(req.query.list===undefined) {
+        if (req.query.list === undefined) {
             categories = categories.where('status', true)
         }
         categories = categories
@@ -31,73 +28,62 @@ router.get('/', async (req,res) => {
             ELSE 11
             END
         `);
-        return res.json({status:true, categories: await categories });
+        return res.json({ status: true, categories: await categories });
     } catch (e) {
-        console.log("exception occured: ",e)
-        error.message = e.message
-        return res.status(400).json(error)        
+        console.log("exception occured: ", e)
+        return res.status(400).json({ status: false, message: e.message })
     }
 });
 
-// Route 3 : Get logged in user details - login required
-router.post('/create', fetchuser, async(req, res) =>{
-    try {  
+router.post('/create', fetchuser, async (req, res) => {
+    try {
         const category = await Category.query().insert({
             name: req.body.name,
-            color: req.body.color??'#fff',
-            status: req.body.status??true,
+            color: req.body.color ?? '#fff',
+            status: toBool(req.body.status ?? true),
         });
-
-        return res.json({status:true, category}); 
-
+        return res.json({ status: true, category });
     } catch (e) {
-        error.message = e.message
-        return res.status(500).json(error)     
+        return res.status(500).json({ status: false, message: e.message })
     }
-}); 
- 
-router.post('/update', fetchuser, async(req, res) =>{
-    try { 
-        // return res.json({req: req.body})
-        console.log(`id is hereL `+req.body.id)    
-        await Category.query().findById(req.body.id).patch({
-            name: req.body.name,
-            color:req.body.color,
-            status: req.body.status
+});
+
+router.post('/update', fetchuser, async (req, res) => {
+    try {
+        const patch = { name: req.body.name, color: req.body.color };
+        if (req.body.status !== undefined) patch.status = toBool(req.body.status);
+        const updated = await Category.query().findById(req.body.id).patch(patch);
+        if (!updated) return res.json({ status: false, message: "Category doesn't exist!" });
+        return res.json({ status: true, message: 'Category updated successfully' });
+    } catch (e) {
+        return res.status(500).json({ status: false, message: e.message })
+    }
+});
+
+router.get('/remove/:id', fetchuser, async (req, res) => {
+    try {
+        // The UI warns "Products associated with this category will also be deleted!" and drops
+        // them from its lists, so do the same here (soft delete) instead of leaving orphans.
+        const categoryDeleted = await Category.transaction(async (trx) => {
+            await Product.query(trx).where('category_id', req.params.id).patch({ deleted: true });
+            return Category.query(trx).deleteById(req.params.id);
         });
-
-        return res.json({status:true, message:'Category updated successfully' }); 
-
+        return res.json({ status: Boolean(categoryDeleted), categoryDeleted });
     } catch (e) {
-        error.message = e.message
-        return res.status(500).json(error)     
+        return res.status(500).json({ status: false, message: e.message })
     }
-}); 
+});
 
-router.get('/remove/:id', fetchuser, async(req, res) =>{
-    try { 
-
-        const categoryDeleted = await Category.query().deleteById(req.params.id);
-        if(categoryDeleted) {
-            return res.json({status:true, categoryDeleted}); 
-        } else {
-            return res.json({status:false, categoryDeleted}); 
-        }
-    } catch (e) {
-        error.message = e.message
-        return res.status(500).json(error)     
-    }
-}); 
-
-router.get('/toggle/:id/:status', async (req,res) => {
-    try { 
+router.get('/toggle/:id/:status', fetchuser, async (req, res) => {
+    try {
         const category = await Category.query().patchAndFetchById(req.params.id, {
-            status: req.params.status
-        }); 
-        return res.json({status:true, category, message: "Status updated!" });
+            status: toBool(req.params.status)
+        });
+        if (!category) return res.json({ status: false, category: {}, message: "Category doesn't exist!" });
+        return res.json({ status: true, category, message: "Status updated!" });
     } catch (error) {
-        return res.json({ status:false, category:{}, message: error.message, message: "Something went wrong!" })   
+        return res.json({ status: false, category: {}, message: error.message })
     }
 })
 
-module.exports=router 
+module.exports = router

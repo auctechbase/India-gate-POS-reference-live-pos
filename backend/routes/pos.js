@@ -4,96 +4,71 @@ const CashierSession = require('../models/CashierSession');
 const CashRegister = require('../models/CashRegister');
 const router = express.Router();
 
-const fetchuser= require('../middlewares/loggedIn');
+const fetchuser = require('../middlewares/loggedIn');
 const { getCurrentDate } = require("../utils");
-let error = { status : false, message:'Something went wrong!' }
-router.get('/products/:img',  async(req, res) => {
-    try{
-    let products;
-    const cols = [
-        'id',
-        'name',
-        'price',
-        'code',
-        'category_id',
-        'sales_desc',
-        'tax',
-        'quantity',
-        'image'
-    ];
-    
+const { toNumber, parseTaxRate, includedTax } = require('../utils/money');
 
-    if (req.body.category_id && req.body.category_id !== 'all') {
-        products = await Product.query().where('pos', true).where('category_id', req.body.category_id).where('deleted',false).orderBy('quantity', 'desc').select(cols).withGraphFetched().modifyGraph('category', (builder) => {
-            builder.select(
-                'product_categories.name as catName'
-            );
-        });
-    } else {
-        products = await Product.query().where('pos', true).where('deleted',false).orderBy('quantity', 'desc').select(cols).withGraphFetched('category').modifyGraph('category', (builder) => {
-            builder.select(
-                'product_categories.name as catName'
-            );
-        });
-    }
+const COLUMNS = ['id', 'name', 'price', 'code', 'category_id', 'sales_desc', 'tax', 'quantity', 'image'];
 
-    return res.json({ status:true, products: products.map(({ category, ...rest }) => ({ 
-        ...rest, 
-        catName: category ? category.catName : null, 
-        taxAmount: rest.tax && rest.tax!=='null'? (rest.price.replace(/\s+/g, '')?.replace(",",'.') * parseFloat(rest.tax) / 100).toFixed(2) : 0.00 })) 
-    });
-    
+// :img is only a cache-buster from the UI.
+router.get('/products/:img', async (req, res) => {
+    try {
+        const products = Product.query()
+            .whereIn('pos', [1, 'true'])
+            .where('deleted', false)
+            .orderByRaw('CAST(quantity AS REAL) DESC')
+            .select(COLUMNS)
+            .withGraphFetched('category')
+            .modifyGraph('category', (builder) => builder.select('product_categories.name as catName'));
+        const categoryId = req.query.category_id;
+        if (categoryId && categoryId !== 'all') products.where('category_id', categoryId);
+
+        return res.json({ status: true, products: (await products).map(({ category, ...rest }) => ({
+            ...rest,
+            catName: category ? category.catName : null,
+            // Prices already include tax (the cart never adds tax on top), so this is the tax
+            // contained in one unit: price × rate / (100 + rate). It was price × rate / 100.
+            taxAmount: includedTax(rest.price, parseTaxRate(rest.tax)).toFixed(2),
+        })) });
     } catch (e) {
-        const path = require('path')
-        error.message = e.message
-        if (error.message.toLowerCase().includes('column')) {
-            await runCommand(`npx knex migrate:latest --cwd ${__dirname.replace('routes','')}`); 
-            return { status: false, relaunch:true, message: "Module installed, please restart." };
-        }
-        return res.status(400).json(error)        
+        return res.status(400).json({ status: false, message: e.message })
     }
-
-
 });
 
-// Route 3 : Get logged in user details - login required
-
-router.post('/session', async(req, res)=> {
-    const session_id = await CashierSession.query().where('cash_register_id', req.body.cash_register_id ).orderBy('id', 'desc').first()
-    return res.json({ session : session_id.session_id + 1 })
+// Next session number for a register (not used by the current UI).
+router.post('/session', async (req, res) => {
+    try {
+        const last = await CashierSession.query().where('cash_register_id', req.body.cash_register_id).max('session_id as max').first();
+        return res.json({ session: (Number(last?.max) || 0) + 1 })
+    } catch (error) {
+        return res.json({ session: 1 });
+    }
 });
 
-router.post('/opening-day-cash-amount', async(req, res) => {
-    try 
-    {
-        let created = await CashRegister.query().insert({
-            opening_cash: req.body.cash,
-            closing_cash: parseFloat(req.body.cash.replace('€ ','')),
+router.post('/opening-day-cash-amount', fetchuser.optional, async (req, res) => {
+    try {
+        const cash = String(req.body.cash ?? '');
+        const amount = toNumber(cash);
+        if (amount <= 0) {
+            return res.json({ status: false, message: "You can't open without a single cash amount in drawer!" });
+        }
+        // Only one open register at a time: if one is still open (e.g. the UI lost it after a
+        // logout), hand that one back instead of creating a second one.
+        const open = await CashRegister.query().where('status', true).orderBy('id', 'desc').first();
+        if (open) {
+            return res.json({ status: true, created: open, message: "The day is already open, continue your transactions!" });
+        }
+        const created = await CashRegister.query().insertAndFetch({
+            opening_cash: cash,
+            closing_cash: amount,
             date: getCurrentDate(),
             status: true,
-            user_id: req.body.myID
+            user_id: req.user?.id ?? null,
         });
-        return res.json({ status:true, created, message:"You can now start transactions!" });
-
+        return res.json({ status: true, created, message: "You can now start transactions!" });
     } catch (error) {
-        return res.json({ status:false, message:error.message })
+        return res.json({ status: false, message: error.message })
     }
-
 });
-async function runCommand(command) {
-    const { exec } = require('child_process');
-    const util = require('util');
-    const execPromise = util.promisify(exec);
-    try {
-        const { stdout, stderr } = await execPromise(command);
-        if (stderr) {
-            return {output:`⚠️ Command executed with warnings: ${stderr}`};
-        }        
-        console.log(stdout)
-        return {output:`✅ Command successful:\n${stdout}`};
-    } catch (error) { 
-        console.log(error)
-        return {output:`❌ Command failed: ${error.message}`};
-    }
-}
-module.exports=router 
+
+module.exports = router
