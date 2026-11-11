@@ -100,7 +100,10 @@ async function start() {
         console.error('Database migration failed:', err);
     }
     return new Promise((resolve) => {
-        server = app.listen(config.port, config.host, () => resolve(server));
+        server = app.listen(config.port, config.host, () => {
+            require('./utils/websiteSync').start();
+            resolve(server);
+        });
         server.on("error", (err) => {
             if (err.code === "EADDRINUSE") {
                 console.error(`❌ Port ${config.port} is already in use.`);
@@ -113,6 +116,7 @@ async function start() {
 }
 
 function stop() {
+    require('./utils/websiteSync').stop();
     if (server) server.close()
     return knex.destroy();
 }
