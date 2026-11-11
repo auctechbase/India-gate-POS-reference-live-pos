@@ -22,6 +22,15 @@ to the UI (only its last 4 characters). Changing the website address clears the 
 - Errors back off (up to 60 s; a `429` waits the full 60 s). The page shows the last error and keeps the saved orders.
 - Delivered/cancelled/returned/refunded/failed orders are listed for 14 days and deleted from the POS after 30.
 
+## Printing
+- A new `pending` order prints its slip on the default receipt printer right away, whichever screen is open
+  (`backend/utils/webReceipt.js` builds the slip, `main.js` prints it). The slip shows the order number,
+  delivery or pickup, customer and address, items, totals, and `TO COLLECT` when the order is unpaid.
+- Orders already waiting at the very first sync are not printed automatically; print them with the button.
+- Every order has a **Print** button (in the list and in the order window).
+- An admin can switch automatic printing off under **Connection**. If the POS is closed when an order arrives,
+  it prints when the POS next starts and syncs.
+
 ## Changing a status
 The UI only offers the order's `allowed_next_statuses`. `POST /orders/{id}/status` is sent with
 `expected_status` (what the screen shows) and `changed_by` (the logged-in POS user). A `409` means someone

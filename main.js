@@ -6,6 +6,8 @@ const server = require('./backend/server');
 const { ipcMain } = require("electron");
 const fs = require('fs');
 const config = require('./backend/config');
+const websiteSync = require('./backend/utils/websiteSync');
+const { receiptHtml } = require('./backend/utils/webReceipt');
 // The logo file name contains a build hash that changes with every UI update; look it up
 // instead of hard-coding it (the app used to crash on start after an update).
 const logoPath = config.findLogoPath();
@@ -137,7 +139,9 @@ ipcMain.handle('get-printers', async (event) => {
     }
 })
 
-ipcMain.on("print-content", (event, content) => {
+// Prints a receipt body on the default printer with the shop logo on top. Used by the UI
+// (print-content) and for new website orders.
+function printReceipt(content) {
     const printWindow = new BrowserWindow({ show: false });
     const html = `<html><style> @page{ size:auto; margin:-5mm 3mm 3mm 2mm }
         *{font-weight:400!important;text-transform:uppercase;font-size:0.85rem!important;font-family:system-ui!important}
@@ -176,7 +180,17 @@ ipcMain.on("print-content", (event, content) => {
             printWindow.close();
         });
     });
+}
 
+ipcMain.on("print-content", (event, content) => printReceipt(content));
+
+// A new website order arrives: print its slip right away, whichever screen is open.
+websiteSync.events.on('new-order', (order) => {
+    try {
+        printReceipt({ html: receiptHtml(order) });
+    } catch (error) {
+        console.error('Could not print the website order:', error.message);
+    }
 });
 
 ipcMain.on(`print-report`, async(event, html) => {

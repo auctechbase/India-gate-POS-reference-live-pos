@@ -2,6 +2,7 @@ const router = require("express").Router();
 const fetchuser = require('../middlewares/loggedIn');
 const User = require('../models/User');
 const sync = require('../utils/websiteSync');
+const { receiptHtml } = require('../utils/webReceipt');
 
 // Website orders. The POS copies them from the website's POS API (utils/websiteSync.js); the
 // cashier moves them through the statuses and every change is sent back to the website.
@@ -48,6 +49,17 @@ router.get('/orders/:id', fetchuser, async (req, res, next) => {
     }
 });
 
+// The slip for one order, for the Print button (the UI sends it to the printer).
+router.get('/orders/:id/receipt', fetchuser, async (req, res, next) => {
+    try {
+        const order = await sync.getLocalOrder(Number(req.params.id));
+        if (!order) return res.status(404).json({ status: false, message: 'Order not found.' });
+        return res.json({ status: true, html: receiptHtml(order) });
+    } catch (err) {
+        next(err);
+    }
+});
+
 router.post('/orders/:id/status', fetchuser, async (req, res, next) => {
     try {
         const newStatus = String(req.body.status || '').trim();
@@ -80,6 +92,14 @@ router.post('/settings', fetchuser, adminOnly, async (req, res, next) => {
         await sync.syncNow();
         const { configured, connected, lastError } = sync.status;
         return res.json({ status: true, message: 'Website connection saved.', ...saved, configured, connected, lastError });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.post('/auto-print', fetchuser, adminOnly, async (req, res, next) => {
+    try {
+        return res.json({ status: true, autoPrint: await sync.setAutoPrint(Boolean(req.body.enabled)) });
     } catch (err) {
         next(err);
     }

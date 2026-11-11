@@ -1,3 +1,4 @@
+const { EventEmitter } = require('events');
 const axios = require('axios');
 const { Model } = require('objection');
 const User = require('../models/User');
@@ -24,6 +25,8 @@ let timer = null;
 let running = false;
 let stopped = true;
 let failures = 0;
+// 'new-order' (order) fires once for each new pending order, so main.js can print its slip.
+const events = new EventEmitter();
 
 // ---- stored settings: url, key and cursor (own table, never sent to the UI) ----
 
@@ -58,7 +61,7 @@ async function getConfig() {
 async function getPublicConfig() {
     const baseUrl = await getState('WEBSITE_API_URL');
     const key = await getState('WEBSITE_API_KEY');
-    return { url: baseUrl || '', hasKey: Boolean(key), keyHint: key ? key.slice(-4) : '' };
+    return { url: baseUrl || '', hasKey: Boolean(key), keyHint: key ? key.slice(-4) : '', autoPrint: await isAutoPrintOn() };
 }
 
 async function saveConfig({ url, apiKey }) {
@@ -150,6 +153,15 @@ async function notifyNewOrders(orders, firstSync) {
     }
 }
 
+async function isAutoPrintOn() {
+    return (await getState('WEBSITE_AUTO_PRINT')) !== '0'; // on unless an admin turned it off
+}
+
+async function setAutoPrint(enabled) {
+    await setState('WEBSITE_AUTO_PRINT', enabled ? '1' : '0');
+    return Boolean(enabled);
+}
+
 async function applyOrders(orders, firstSync) {
     const newPending = [];
     await db().transaction(async (trx) => {
@@ -162,6 +174,13 @@ async function applyOrders(orders, firstSync) {
         await trx('web_orders').whereIn('status', TERMINAL).where('updated_at', '<', cutoff).delete();
     });
     await notifyNewOrders(newPending, firstSync);
+    // The first sync can bring a pile of orders that were already waiting: those are not printed
+    // by themselves (the cashier prints them from the order), only orders arriving afterwards.
+    if (!firstSync && newPending.length && await isAutoPrintOn()) {
+        for (const order of newPending) {
+            try { events.emit('new-order', order); } catch (err) { console.error('Printing a website order failed:', err.message); }
+        }
+    }
 }
 
 // ---- the sync loop ----
@@ -265,6 +284,11 @@ async function listOrders() {
 
 const NOT_CONNECTED = { http: 400, body: { status: false, error: 'not_configured', message: 'Connect the website first.' } };
 
+async function getLocalOrder(id) {
+    const row = await db()('web_orders').where({ id }).first();
+    return row ? parse(row.data) : null;
+}
+
 // One order with its status history. Falls back to the saved copy when the website can't be reached.
 async function getOrder(id) {
     const cfg = await getConfig();
@@ -346,12 +370,15 @@ async function testConnection({ url, apiKey } = {}) {
 
 module.exports = {
     TERMINAL,
+    events,
     status,
     start,
     stop,
     syncNow,
     getPublicConfig,
     saveConfig,
+    setAutoPrint,
+    getLocalOrder,
     testConnection,
     listOrders,
     getOrder,

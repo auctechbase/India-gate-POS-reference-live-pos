@@ -29,6 +29,28 @@ const when = (iso) => {
 };
 const errorText = (err, fallback) => (err.response && err.response.data && err.response.data.message) || fallback;
 
+// Sends the order slip to the receipt printer (inside the POS app). In a plain browser, opens the print dialog.
+async function printOrder(id) {
+    try {
+        const { data } = await axios.get(`website/orders/${id}/receipt`);
+        if (window.electronAPI) {
+            window.electronAPI.printContent({ html: data.html });
+            toast.success('Sent to the printer');
+            return;
+        }
+        const frame = document.createElement('iframe');
+        frame.style.cssText = 'position:fixed;width:0;height:0;border:0';
+        document.body.appendChild(frame);
+        frame.contentDocument.write(`<html><body style="font-family:system-ui;width:300px">${data.html}</body></html>`);
+        frame.contentDocument.close();
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        setTimeout(() => frame.remove(), 2000);
+    } catch (err) {
+        toast.error(errorText(err, 'Could not print the order.'));
+    }
+}
+
 function useOnline() {
     const [online, setOnline] = useState(navigator.onLine);
     useEffect(() => {
@@ -64,14 +86,25 @@ function StatusBadge({ order }) {
 function ConnectionSettings({ onSaved, onClose }) {
     const [form, setForm] = useState({ url: '', apiKey: '' });
     const [saved, setSaved] = useState({ hasKey: false, keyHint: '' });
+    const [autoPrint, setAutoPrint] = useState(true);
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);
 
     useEffect(() => {
         axios.get('website/settings')
-            .then(({ data }) => { setForm(f => ({ ...f, url: data.url || '' })); setSaved({ hasKey: data.hasKey, keyHint: data.keyHint }); })
+            .then(({ data }) => { setForm(f => ({ ...f, url: data.url || '' })); setSaved({ hasKey: data.hasKey, keyHint: data.keyHint }); setAutoPrint(data.autoPrint !== false); })
             .catch(() => { });
     }, []);
+
+    const toggleAutoPrint = async (enabled) => {
+        setAutoPrint(enabled);
+        try {
+            await axios.post('website/auto-print', { enabled });
+        } catch (err) {
+            setAutoPrint(!enabled);
+            toast.error(errorText(err, 'Could not change the setting.'));
+        }
+    };
 
     const test = async () => {
         setBusy(true); setResult(null);
@@ -118,6 +151,10 @@ function ConnectionSettings({ onSaved, onClose }) {
                             placeholder={saved.hasKey ? `Saved (ends in ${saved.keyHint}). Leave empty to keep it.` : 'Paste the POS API key'}
                             value={form.apiKey} onChange={e => setForm({ ...form, apiKey: e.target.value })} />
                     </div>
+                </div>
+                <div className="form-check form-switch mt-3" style={{ fontSize: '1.1rem' }}>
+                    <input className="form-check-input" type="checkbox" id="autoPrint" checked={autoPrint} onChange={e => toggleAutoPrint(e.target.checked)} />
+                    <label className="form-check-label ms-2" htmlFor="autoPrint">Print new website orders automatically</label>
                 </div>
                 {result && (
                     <div className={`alert mt-3 mb-0 ${result.ok ? 'alert-success' : 'alert-danger'}`}>{result.message}</div>
@@ -236,6 +273,9 @@ function OrderModal({ orderId, summary, onClose, onChanged }) {
                         {nice(s)}
                     </button>
                 ))}
+                <button type="button" className="btn btn-outline-dark" style={{ minHeight: 56, borderRadius: 12 }} onClick={() => printOrder(orderId)}>
+                    <i className="mdi mdi-printer me-1" />Print
+                </button>
                 <button type="button" className="btn btn-outline-secondary" style={{ minHeight: 56, borderRadius: 12 }} onClick={onClose}>Close</button>
             </ModalFooter>
         </Modal>
@@ -356,7 +396,7 @@ function Website() {
                         ) : (
                             <div className="table-responsive">
                                 <table className="table table-hover">
-                                    <thead><tr><th>Order</th><th>Customer</th><th>Type</th><th>Items</th><th>Total</th><th>Placed</th><th>Status</th></tr></thead>
+                                    <thead><tr><th>Order</th><th>Customer</th><th>Type</th><th>Items</th><th>Total</th><th>Placed</th><th>Status</th><th></th></tr></thead>
                                     <tbody>
                                         {orders.map(o => (
                                             <tr key={o.id} style={{ height: 56, cursor: 'pointer' }} onClick={() => setOpenId(o.id)}>
@@ -367,6 +407,12 @@ function Website() {
                                                 <td>{euro((o.amounts || {}).total)}</td>
                                                 <td>{when(o.created_at)}</td>
                                                 <td><StatusBadge order={o} /></td>
+                                                <td>
+                                                    <button type="button" className="btn btn-outline-dark" title="Print order" style={{ minHeight: 44 }}
+                                                        onClick={e => { e.stopPropagation(); printOrder(o.id); }}>
+                                                        <i className="mdi mdi-printer" />
+                                                    </button>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>

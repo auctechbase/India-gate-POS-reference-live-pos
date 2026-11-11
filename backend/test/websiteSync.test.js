@@ -68,6 +68,7 @@ const fake = http.createServer((req, res) => {
 });
 
 let pos, siteUrl, admin, cashier;
+const printed = []; // ids of orders the POS would print by itself
 const call = async (method, p, token, body) => {
     const res = await fetch(`http://127.0.0.1:${config.port}${p}`, {
         method, headers: { 'content-type': 'application/json', ...(token ? { 'pos-token': token } : {}) },
@@ -81,6 +82,7 @@ test.before(async () => {
     siteUrl = `http://127.0.0.1:${fake.address().port}`;
     pos = require('../server');
     await pos.start();
+    require('../utils/websiteSync').events.on('new-order', o => printed.push(o.id));
     const mk = async (name, type) => {
         const [id] = await pos.knex('users').insert({ name, email: `${name}@x.nl`, password: 'x', type });
         return jwt.sign({ user: { id } }, config.jwtSecret);
@@ -126,6 +128,7 @@ test('saving the connection syncs all pages and alerts users once per order', as
     const notes = await pos.knex('web_notifications').where('user_id', 1);
     assert.equal(notes.length, 1, 'first sync with several pending orders gives one summary alert');
     assert.match(notes[0].content, /2 website orders/);
+    assert.deepEqual(printed, [], 'orders already waiting at the first sync are not printed by themselves');
 });
 
 test('later syncs use the server time as the cursor and pick up changes, new orders and deletions', async () => {
@@ -144,6 +147,7 @@ test('later syncs use the server time as the cursor and pick up changes, new ord
     const notes = await pos.knex('web_notifications').where('user_id', 1).orderBy('id');
     assert.match(notes.at(-1).content, /New website order #2026000004 \(EUR 25.50\)/);
     assert.equal(notes.length, 2, 'only the genuinely new pending order alerts');
+    assert.deepEqual(printed, [4], 'a new pending order is printed once');
 });
 
 test('opening an order brings the status history', async () => {
@@ -173,6 +177,42 @@ test('a conflict refreshes the order; a bad move is refused', async () => {
     const bad = await call('POST', '/website/orders/4/status', cashier, { status: 'delivered' });
     assert.equal(bad.code, 422);
     assert.deepEqual(bad.body.allowed_next_statuses, NEXT);
+});
+
+test('auto-print can be switched off by an admin, and the slip can still be printed by hand', async () => {
+    assert.equal((await call('POST', '/website/auto-print', cashier, { enabled: false })).code, 403);
+    assert.equal((await call('POST', '/website/auto-print', admin, { enabled: false })).body.autoPrint, false);
+    assert.equal((await call('GET', '/website/settings', admin)).body.autoPrint, false);
+
+    site.time = 3;
+    site.orders.push(order(5, 'pending', { touched: '2026-11-11T14:00:03+00:00', customer: { name: '<b>Evil</b> & Co', phone: '06' }, payment: { mode: 'Cash on Delivery', status: 'unpaid' } }));
+    await call('POST', '/website/refresh', cashier);
+    assert.deepEqual(printed, [4], 'switched off: the new order is not printed');
+
+    const slip = await call('GET', '/website/orders/5/receipt', cashier);
+    assert.equal(slip.code, 200);
+    assert.match(slip.body.html, /#2026000005/);
+    assert.match(slip.body.html, /&lt;b&gt;Evil&lt;\/b&gt; &amp; Co/, 'customer text is escaped');
+    assert.match(slip.body.html, /TO COLLECT: &euro; 25.50/);
+    assert.equal((await call('GET', '/website/orders/999/receipt', cashier)).code, 404);
+
+    await call('POST', '/website/auto-print', admin, { enabled: true });
+    site.time = 4;
+    site.orders.push(order(6, 'pending', { touched: '2026-11-11T14:00:04+00:00' }));
+    await call('POST', '/website/refresh', cashier);
+    assert.deepEqual(printed, [4, 6], 'switched on again: printing resumes');
+});
+
+test('a failing printer does not break the sync', async () => {
+    const sync = require('../utils/websiteSync');
+    const boom = () => { throw new Error('printer on fire'); };
+    sync.events.on('new-order', boom);
+    site.time = 5;
+    site.orders.push(order(7, 'pending', { touched: '2026-11-11T14:00:05+00:00' }));
+    const r = await call('POST', '/website/refresh', cashier);
+    sync.events.off('new-order', boom);
+    assert.equal(r.body.connected, true);
+    assert.ok(r.body.orders.some(o => o.id === 7));
 });
 
 test('when the website is down the saved orders stay and the error is shown', async () => {
