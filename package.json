@@ -1,21 +1,21 @@
 {
-  "name": "pos",
+  "name": "pos-new",
   "version": "1.0.1",
   "main": "main.js",
   "scripts": {
     "start": "electron . && nodemon backend/server.js",
-    "build": "electron-packager . POS-ov --icon=pos.ico",
+    "build": "electron-packager . POS-New --icon=pos.ico",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dist": "electron-builder"
   },
   "repository": {},
   "build": {
-    "appId": "pos.dftech.in",
-    "productName": "POS Infinity",
+    "appId": "pos.dftech.in.new",
+    "productName": "POS Infinity New",
     "win": {
       "icon": "pos.ico",
       "target": "nsis",
-      "shortcutName": "POS",
+      "shortcutName": "POS New",
       "createDesktopShortcut": true
     },
     "files": [

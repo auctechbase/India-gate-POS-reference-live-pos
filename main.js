@@ -13,7 +13,23 @@ let mainWindow;
 let backendProcess;
 let windows=[]
 
-app.on('ready', () => 
+const BASE_URL = `http://localhost:${server.port}`;
+const ORIGINAL_POS_PORT = 5100;
+
+// Keep this POS's browser data (localStorage: cart, day opening, login) in its own
+// folder, so it never shares or locks the original POS's data.
+app.setPath('userData', path.join(app.getPath('appData'), 'POS Infinity New'));
+
+// Resolves true if something (the original POS) is already listening on `port`.
+const isPortInUse = port => new Promise(resolve => {
+    const socket = require('net').connect({ port, host: '127.0.0.1' });
+    socket.setTimeout(1000);
+    socket.once('connect', () => { socket.destroy(); resolve(true); });
+    socket.once('timeout', () => { socket.destroy(); resolve(false); });
+    socket.once('error', () => resolve(false));
+});
+
+app.on('ready', async () => 
 {
     server.start();
     const { width, height } = electron.screen.getPrimaryDisplay().workAreaSize
@@ -30,7 +46,7 @@ app.on('ready', () =>
         },
     });
     
-    mainWindow.loadURL('http://localhost:5100');
+    mainWindow.loadURL(BASE_URL);
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         return { action: 'deny' };
     });
@@ -48,7 +64,12 @@ app.on('ready', () =>
 
     const displays = screen.getAllDisplays();
     const customerDisplay = displays.length > 1 ? displays[1] : null;
-    if (customerDisplay) {
+    // If the original POS is running it already owns the customer display;
+    // don't cover it with our always-on-top window.
+    const originalPosRunning = await isPortInUse(ORIGINAL_POS_PORT);
+    if (originalPosRunning) {
+        console.log("Original POS is running, skipping customer display.");
+    } else if (customerDisplay) {
         const customerWindow = new BrowserWindow({
             width: customerDisplay.size.width,
             height: customerDisplay.size.height,
@@ -63,7 +84,7 @@ app.on('ready', () =>
                 preload: path.join(__dirname, 'preload.js')
             },
         });
-        customerWindow.loadURL("http://localhost:5100/#/pos/customer");
+        customerWindow.loadURL(`${BASE_URL}/#/pos/customer`);
         customerWindow.setFullScreen(true)
         windows.push(customerWindow)
     } else {

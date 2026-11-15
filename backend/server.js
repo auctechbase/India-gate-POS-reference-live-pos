@@ -16,7 +16,10 @@ const knex = Knex({
 Model.knex(knex);
 
 const app = express();
-const port = 5100;
+// The original POS runs on 5100. This (new) POS uses 5101 so both can run on the
+// same PC at the same time without one stealing the other's port.
+// NOTE: the compiled frontend in client/build also points at localhost:5101.
+const port = 5101;
 const buildPath = path.join(__dirname, 'client/build');
 app.use(cors());
 app.use(express.json());
@@ -151,4 +154,4 @@ function stop(){
   server.close()
 }
 
-module.exports = {start, stop }
+module.exports = {start, stop, port }
