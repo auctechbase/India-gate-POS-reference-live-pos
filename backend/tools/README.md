@@ -14,8 +14,8 @@ If the original POS is running, the new POS does not open the customer display
 
 ## Import the data
 
-`import-old-db.js` copies **everything** (products, categories, taxes, users,
-orders, sales details, cash registers, settings) and product images.
+`import-old-db.js` copies products, categories, taxes, users, settings and
+product images, and (without `--catalog`) also the sales history.
 
 - The original database is opened **read-only**. The original POS can stay open.
 - A consistent snapshot is taken (`VACUUM INTO`), and only the copy is upgraded
@@ -23,10 +23,16 @@ orders, sales details, cash registers, settings) and product images.
 - Row counts are checked; the import stops if anything doesn't match.
 - An existing new-POS database is kept as `db.sqlite.bak-<time>`.
 
+### Catalog only (no old sales history)
+
+Add `--catalog` to any command below. You get categories, products, images,
+taxes, users (same logins), settings and customers. Left out: orders, receipts,
+cash registers, reports and stock alerts. The new POS starts at order #1.
+
 **Close the new POS first.** Then, from the new POS `backend` folder:
 
 ```
-node tools/import-old-db.js "<ORIGINAL>\resources\app\backend\database\db.sqlite" "<ORIGINAL>\resources\app\backend\tmp"
+node tools/import-old-db.js --catalog "<ORIGINAL>\resources\app\backend\database\db.sqlite" "<ORIGINAL>\resources\app\backend\tmp"
 ```
 
 No Node.js on the shop PC? Use the new POS's own executable as Node
@@ -34,7 +40,7 @@ No Node.js on the shop PC? Use the new POS's own executable as Node
 
 ```
 set ELECTRON_RUN_AS_NODE=1
-POS-New.exe resources\app\backend\tools\import-old-db.js "<ORIGINAL>\resources\app\backend\database\db.sqlite" "<ORIGINAL>\resources\app\backend\tmp"
+POS-New.exe resources\app\backend\tools\import-old-db.js --catalog "<ORIGINAL>\resources\app\backend\database\db.sqlite" "<ORIGINAL>\resources\app\backend\tmp"
 ```
 
 Log in to the new POS with the **same username/password** as the original.

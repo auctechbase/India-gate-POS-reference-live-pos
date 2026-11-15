@@ -1,7 +1,12 @@
 /*
  * Import data from the ORIGINAL POS into this (new) POS.
  *
- *   node tools/import-old-db.js "<path to old db.sqlite>" ["<path to old tmp images folder>"]
+ *   node tools/import-old-db.js [--catalog] "<path to old db.sqlite>" ["<path to old tmp images folder>"]
+ *
+ *   --catalog  Import only the catalog: categories, products, images, taxes,
+ *              users, settings, customers. The old sales history (orders,
+ *              receipts, cash registers, reports, stock alerts) is left out,
+ *              so the new POS starts with order number 1.
  *
  * Safety rules:
  *  - The old database is opened READ-ONLY and is never modified. It can stay
@@ -20,13 +25,18 @@ const BACKEND = path.join(__dirname, '..');
 const TARGET_DB = path.join(BACKEND, 'database', 'db.sqlite');
 const TARGET_IMAGES = path.join(BACKEND, 'tmp');
 
-const [oldDbArg, oldImagesArg] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const CATALOG_ONLY = args.includes('--catalog');
+const [oldDbArg, oldImagesArg] = args.filter(a => !a.startsWith('--'));
 if (!oldDbArg) {
-    console.log('Usage: node tools/import-old-db.js "<old db.sqlite>" ["<old tmp folder>"]');
+    console.log('Usage: node tools/import-old-db.js [--catalog] "<old db.sqlite>" ["<old tmp folder>"]');
     process.exit(1);
 }
 const OLD_DB = path.resolve(oldDbArg);
 const TMP_DB = TARGET_DB + '.importing';
+
+// Tables that hold the sales history (left empty with --catalog).
+const SALES_TABLES = ['orders', 'cashier_sessions', 'cash_register', 'reports', 'web_notifications'];
 
 const fail = msg => { console.error('\n❌ ' + msg); process.exit(1); };
 
@@ -164,12 +174,28 @@ function copyImages(from, to) {
         changes.forEach(c => console.log('  + ' + c));
         warnings.forEach(w => console.log('  ⚠️  ' + w));
 
-        console.log('\nRows imported:');
+        // The upgrade must never lose rows.
         for (const [t, n] of Object.entries(after)) {
-            if (t.startsWith('knex_')) continue;
             const was = before[t] ?? 0;
             if (was !== n) fail(`Row count changed for ${t} (${was} → ${n})`);
-            console.log(`  ${t.padEnd(20)} ${n}`);
+        }
+
+        if (CATALOG_ONLY) {
+            for (const t of SALES_TABLES) {
+                if (after[t] !== undefined) await knex(t).del();
+            }
+            // Reset the auto-increment counters so new orders start at 1.
+            const hasSeq = await knex.raw("SELECT 1 FROM sqlite_master WHERE name='sqlite_sequence'");
+            if (hasSeq.length) await knex('sqlite_sequence').whereIn('name', SALES_TABLES).del();
+            await knex.raw('VACUUM'); // shrink the file after deleting
+        }
+
+        const final = await countRows(knex);
+        console.log(CATALOG_ONLY ? '\nRows imported (catalog only, sales history left out):' : '\nRows imported:');
+        for (const [t, n] of Object.entries(final)) {
+            if (t.startsWith('knex_') || t === 'sqlite_sequence') continue;
+            const note = CATALOG_ONLY && SALES_TABLES.includes(t) ? `  (skipped ${after[t]} old rows)` : '';
+            console.log(`  ${t.padEnd(20)} ${n}${note}`);
         }
     } finally {
         await knex.destroy();
