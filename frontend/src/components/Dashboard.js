@@ -17,6 +17,7 @@ function Dashboard() {
         width:'100%', aspectRatio:'1', display:'grid', placeItems:'center', borderRadius:'50%',
         background:'linear-gradient(135deg,#2b8a9e,#1b4f72)', color:'#fff', fontSize:'5.5rem', lineHeight:1,
     }
+    const offersIcon = { ...websiteIcon, background:'linear-gradient(135deg,#c9a24a,#8a6420)' }
     const {data, isSuccess } = useGetSettingsQuery();
 
     useEffect(()=>{
@@ -137,6 +138,24 @@ function Dashboard() {
                                 </div>
                                 </Link>
                                 { theme==='default' && <h5 className="pt-3">Website</h5> }
+                            </div>
+                            <div className="col-md-4 text-center" style={padding}>
+                                <Link to={`/offers`} style={{textDecoration:'none'}}>
+                                <div className="card redirect" data-toggle="tooltip" data-placement="bottom" title="Offers">
+                                    <div className="card-body">
+                                    <div className="d-flex">
+                                        <div style={card}>
+                                            {
+                                                theme==='retro' ?
+                                                    <h1 style={{fontSize:'2.4rem',fontFamily:'system-ui'}}>OFFERS</h1> :
+                                                <div style={offersIcon}><i className="mdi mdi-tag-multiple" /></div>
+                                            }
+                                        </div>
+                                    </div>
+                                    </div>
+                                </div>
+                                </Link>
+                                { theme==='default' && <h5 className="pt-3">Offers</h5> }
                             </div>
                         </div>
                     </div>

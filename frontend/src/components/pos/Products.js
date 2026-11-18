@@ -13,7 +13,8 @@ function Products({
     toggleModal,
     otherOpen,
     isInventory,
-    catColors
+    catColors,
+    offerBadges = new Map()
 }) {
 
     const handleImgError = e => e.target.src = labelImg;
@@ -52,6 +53,7 @@ function Products({
                         <div className='cell' 
                             style={{minHeight:80}}
                         >
+                            { offerBadges.has(product.id) && <span className='offer-badge' title={offerBadges.get(product.id)}>{offerBadges.get(product.id)}</span> }
                             {
                                 (displayImage || [categories[0].id, categories[1]?.id??0].includes(product.category_id) ) &&
                                 <div className='w-100'>

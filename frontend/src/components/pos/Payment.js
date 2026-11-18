@@ -9,6 +9,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useSearch } from '../../contexts/SearchContext';
 import { TaxTable } from '../layouts/Navbar';
 import './PayPad.css';
+import '../offers/Offers.css';
+import { useOfferDiscounts, lineDiscount, lineOfferNames, cartDiscount, paidContent, sendToDisplay } from '../../helpers/offers';
 
 // One key of the payment pad. Acts on pointerdown: instant on a touchscreen.
 const PadKey = ({ onPress, fn, tall, label, children }) => (
@@ -39,16 +41,17 @@ export default function Payment()
 
     const showTaxes = arr => {
         let xyz=[];
-        arr.forEach(c=> {
+        arr.forEach((c, line)=> {
             let index=0
             let tax = sanitize(c.tax);
             index = xyz.findIndex( p => sanitize(p.tax) === tax);
-            // now take the overall price like qt * unit price its in c.prices[c.id]
+            // what the customer pays for the line: quantity × unit price, less what offers take off
+            const net = c.stock * c.price - lineDiscount(discounts, c, line);
             if( index !== -1 ) {
-                xyz[index]['amount'] = Number(xyz[index].amount) + Number(calTax(tax, c.stock * c.price));
-                xyz[index]['over'] = Number(xyz[index].over) + Number(c.price * c.stock);
+                xyz[index]['amount'] = Number(xyz[index].amount) + Number(calTax(tax, net));
+                xyz[index]['over'] = Number(xyz[index].over) + Number(net);
             } else {
-                xyz.push({ tax, amount: calTax(tax, c.stock * c.price), over: c.price * c.stock });
+                xyz.push({ tax, amount: calTax(tax, net), over: net });
             }
         });
         xyz = xyz.sort((a,b) => a.tax-b.tax)
@@ -80,6 +83,10 @@ export default function Payment()
     const [ KartProducts, setKartProducts] = useState([]);
     const [ currentMethod, setCurrentMethod ] = useState('');
     const [ number, setNumber ] = useState('');
+
+    // Offers: what they take off this cart (worked out by the backend, same as on the till).
+    const { discounts, pending: offersPending } = useOfferDiscounts(cartProducts[active] ?? []);
+    const offerDiscount = cartDiscount(discounts, cartProducts[active] ?? []);
 
     const showQT = (products) => {
         let total = 0
@@ -163,7 +170,7 @@ export default function Payment()
             returns = returns.reduce((acc, cur)=> acc + (cur.stock * parseFloat(cur.price)),0)
         }
         RETURNS = returns
-        return parseFloat(additions - returns)
+        return Math.round((additions - returns - offerDiscount) * 100) / 100
     }
 
     const total = showTotal()
@@ -206,7 +213,8 @@ export default function Payment()
     const initPayment = async () => {
         let quicks = 1;
         if( processing ) return;
-        if(total===0) return navigate('/pos')
+        if( offersPending ) return Warning("Updating the offers, try again in a moment.");
+        if(total===0 && !offerDiscount) return navigate('/pos')
         let paidAmount = parseFloat(byAll.Cash) + parseFloat(byAll.Card) + parseFloat(byAll.Account)
         if(total > 0 && paidAmount < total.toFixed(2)) { // paid-amount agr total se kam hai to laut jao
             return Warning("Pay the remaining amount!");
@@ -231,7 +239,9 @@ export default function Payment()
             cashForDrawer -= thruAC;
         }
         const sessionData = cartProducts[active].reduce(
-            (acc, { stock, id, price, unit, ...rest }) => {
+            (acc, { stock, id, price, unit, ...rest }, line) => {
+                // Offers lower what the line costs; the X/Z reports count the difference as a discount.
+                const lineOff = lineDiscount(discounts, cartProducts[active][line], line)
                 if(acc.products.indexOf(id) ===-1 || id==='quick') { // quick hi ayega udhr se hmesa so its all done here
                     if(acc.products.indexOf(id) !== -1) { // add with incremented number
                         quicks+=1
@@ -254,7 +264,7 @@ export default function Payment()
                     const units = (acc.units[id] || 0) + (rest.return ? -1 : 1) * (stock-0)
                     acc.units[id] = units
                     acc.quantity[id] = Math.abs(units)
-                    acc.price[id] = Math.round(((acc.price[id] || 0) + (rest.return ? -1 : 1) * (stock-0) * f(price)) * 100) / 100
+                    acc.price[id] = Math.round(((acc.price[id] || 0) + (rest.return ? -1 : 1) * (stock-0) * f(price) - lineOff) * 100) / 100
                 }
                 if(id==='quick') acc.otherAmount = rest.return ? (acc.otherAmount -0) - price: (acc.otherAmount -0) + (price-0)
                 acc.r = returnPart();
@@ -262,6 +272,10 @@ export default function Payment()
             },
             { products: [], total: 0, quantity: {}, units: {}, otherAmount:0.00, unit:{}, price:{}, r:'' }
         );
+        if(offerDiscount > 0) {
+            sessionData.discount = offerDiscount;
+            sessionData.offers = discounts.offers; // [{ id, name, sets, discount }]
+        }
 
         const {data} = await axios.post(`orders/create`, {
             session_id: active,
@@ -301,7 +315,8 @@ export default function Payment()
             }
 
             localStorage.removeItem('_pos_current_session')
-            window.electronAPI?.reloadWindow({manual:true})
+            // "Paid / your change / you saved" on the customer display, before the cart is cleared.
+            sendToDisplay(paidContent({ total, paid: paid(), saved: offerDiscount, currency }))
             // set it up in a way if previous active session has some products then prevents its vanishing
             if(sessions.length===1) {
                 localStorage.setItem('cartSessions', JSON.stringify(sessions.map( item => item + 1)));
@@ -437,7 +452,7 @@ export default function Payment()
                                     >
                                     { processing ? <div className='d-grid' style={{placeItems:'center'}}>
                                         <LoaderIcon style={{ width:20, height:20 }}/>
-                                    </div> :'Complete Payment' }
+                                    </div> : offersPending ? 'Updating offers…' : 'Complete Payment' }
                                     </button>
                                 </div>
                             </div>
@@ -451,6 +466,9 @@ export default function Payment()
                             <h1 className="text-success" style={{textAlign:'center'}}>
                                 <span className="total-amount">{currency + parseFloat(total).toFixed(2)}</span>
                             </h1>
+                            { offerDiscount > 0 && <div className="offer-savings text-center fs-5">
+                                <i className="mdi mdi-tag" /> Offers applied: - {currency} {offerDiscount.toFixed(2)}
+                            </div> }
                         </div>
                     </div>
                     <div className="card mt-3 w-100 parent">
@@ -566,10 +584,16 @@ export default function Payment()
                                             { currency +' '+ f(product.price) }
                                             { typeof product.id ==='string' && product.id.indexOf('quick') !== -1 ? ' x': ( product.unit ? ` /${product.unit}` : '/ Units')}
                                         </span>
-                                        <span style={{fontFamily:'Manrope, sans-serif'}}> 
+                                        <span style={{fontFamily:'Manrope, sans-serif'}}>
                                             Qty: {product.unit ? proper(product.stock, product.unit): f(product.stock)}
                                         </span>
                                     </div>
+                                    { lineDiscount(discounts, product, l) > 0 &&
+                                        <div style={{display:'flex', width:'100%', justifyContent:'space-between', fontWeight:700}}>
+                                            <span>* { lineOfferNames(discounts, product, l).join(', ') || 'Offer' }</span>
+                                            <span style={{whiteSpace:'nowrap'}}>- { currency + ' ' + lineDiscount(discounts, product, l).toFixed(2) }</span>
+                                        </div>
+                                    }
                                 </div>
                                 )
                             }
@@ -581,6 +605,9 @@ export default function Payment()
                                     return null
                                 })}
                             </div>
+                           { offerDiscount > 0 && <h1 style={{cssText:"font-size:1.1rem!important;font-weight:600;margin-top:5px"}}>
+                               OFFERS: - {currency + ' ' + offerDiscount.toFixed(2)} &nbsp; (YOU SAVED {currency + ' ' + offerDiscount.toFixed(2)})
+                           </h1> }
                            <h1 style={{cssText:"font-size:1.75rem!important;font-weight:600;margin-top:5px"}}> TOTAL &nbsp; {currency + ' ' + parseFloat(total).toFixed(2) }</h1> 
                            <h1 style={{cssText:"font-size:1rem;font-weight:600"}}>Products: {showQT(cartProducts[active])}</h1>
                            <div>{returnPart()}</div>

@@ -373,11 +373,6 @@ function Navbar() {
                 { id:'quick', name:'Others', price:0.0, stock:1, other:true, weight:null, return: true }
             ]}
         });
-        window.electronAPI?.reloadWindow({...cartProducts,[activeSession]: [...cartProducts[activeSession]??[], 
-            sale ? 
-            { id:'quick', name:'Others', price:0.0, stock:1, other:true, weight:null } : 
-            { id:'quick', name:'Others', price:0.0, stock:1, other:true, weight:null, return: true }
-        ] })
         setTimeout(() => {
             let el = document.querySelector(`.chosen-product.other-product`);
             if(el) {
@@ -468,7 +463,7 @@ function Navbar() {
 
     const [taxes, setTaxAmounts] = useState([]);
 
-    if(params && params.type==='customer') return null;
+    if((params && params.type==='customer') || location.pathname === '/pos/customer') return null;
     
     return (
     <>

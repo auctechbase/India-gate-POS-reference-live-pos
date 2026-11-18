@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef, useState } from 'react'; 
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import TouchKeyboard from '../common/TouchKeyboard';
 import axios from 'axios';
 import { useDispatch, useSelector } from 'react-redux';
@@ -13,6 +13,8 @@ import Category from './Category';
 import Products from './Products';
 import logo from '../../asset/images/logo.png'
 import { Button } from '../layouts/Navbar';
+import { useOfferDiscounts, useActiveOffers, offerBadges, lineDiscount, lineOfferNames, cartDiscount, displayContent, sendToDisplay } from '../../helpers/offers';
+import '../offers/Offers.css';
 let noCodeProducts=[]
 function POS() {
     const cRef = useRef(null);
@@ -191,7 +193,6 @@ function POS() {
             }
             setCartProducts(copyKartProducts);
             dispatch({ type: "CHOOSEN_PRODUCT", payload:copyKartProducts });
-            window.electronAPI?.reloadWindow({...copyKartProducts, id: thisProduct.id })
 
         } else {
 
@@ -216,8 +217,6 @@ function POS() {
             setCartProducts(rest);
 
             dispatch({ type: 'CHOOSEN_PRODUCT', payload: rest });
-            // update the current project highlight
-            window.electronAPI?.reloadWindow({...rest, id: product.id })
         }
 
     }
@@ -226,7 +225,6 @@ function POS() {
         let rest = {...KartProducts, [activeSession]: []}
         setCartProducts(rest);
         dispatch({ type: "CHOOSEN_PRODUCT", payload: rest });
-        window.electronAPI?.reloadWindow({ ...rest, id:0 })
     }
 
     // Reverse the stock decrement here
@@ -234,7 +232,6 @@ function POS() {
         let rest = {...KartProducts,[activeSession]: KartProducts[activeSession].filter((item, i)=> i!== index) }
         setCartProducts(rest);
         dispatch({ type: 'CHOOSEN_PRODUCT', payload: rest });
-        window.electronAPI?.reloadWindow({...rest, id:0})
     }
 
     const toggleModal = () => setModal(!otherOpen)
@@ -480,8 +477,7 @@ function POS() {
             }
             if(inventory) setAvailableStocks({...availableStocks, [product.id]: availableStock });
             setCartProducts({...KartProducts,[activeSession]: [...KartProducts[activeSession]??[], product] });
-            window.electronAPI?.reloadWindow({...KartProducts,[activeSession]: [...KartProducts[activeSession]??[], product], id: product.id })
-            dispatch({ 
+            dispatch({
                 type: 'CHOOSEN_PRODUCT', 
                 payload: {...KartProducts,[activeSession]: [...KartProducts[activeSession]??[], product] } 
             });
@@ -500,6 +496,19 @@ function POS() {
     }
     
     const {type} = useParams();
+
+    // Offers: today's offers (badges on the tiles) and what they take off the active cart.
+    const cartItems = useMemo(() => cartProducts?.[activeSession] ?? [], [cartProducts, activeSession]);
+    const { discounts } = useOfferDiscounts(type === 'customer' ? [] : cartItems);
+    const activeOffers = useActiveOffers();
+    const badges = useMemo(() => offerBadges(activeOffers), [activeOffers]);
+    const offerDiscount = cartDiscount(discounts, KartProducts?.[activeSession] ?? []);
+
+    // The customer display follows the active cart (items, offers, total, "add 1 more" hints).
+    useEffect(() => {
+        if (type === 'customer') return;
+        sendToDisplay(displayContent({ items: cartItems, discounts, offers: activeOffers, currency, selected: currentProduct }));
+    }, [cartItems, discounts, activeOffers, currency, currentProduct, type]);
 
     useEffect(() => {
 
@@ -530,7 +539,7 @@ function POS() {
             if(tax) {
                 return f(addTaxes-remTaxes)
             }
-            return parseFloat(additions - returns).toFixed(2)
+            return parseFloat(additions - returns - offerDiscount).toFixed(2)
 
         } else {
 
@@ -574,13 +583,6 @@ function POS() {
                     return item
                 })}
             });
-
-            window.electronAPI?.reloadWindow({ ...KartProducts,[activeSession]: KartProducts[activeSession].map((item, i)=> {
-                if(i=== currentProduct ) {
-                    item = {...item, price: newPriceAmount }
-                }
-                return item
-            }), id: KartProducts[activeSession][currentProduct]?.id })
             return
         }
         let newStockAmount;
@@ -618,12 +620,6 @@ function POS() {
                     return item
                 })}
             })
-            window.electronAPI?.reloadWindow({...KartProducts,[activeSession]: KartProducts[activeSession].map((item, i)=> {
-                if(i=== currentProduct ) {
-                    item = {...item, stock:newStockAmount }
-                }
-                return item
-            }), id: KartProducts[activeSession][currentProduct]?.id })
         }
     }
 
@@ -731,6 +727,12 @@ function POS() {
                                     </span>
                                     {item.id!=='quick' && <span className={`ms-3`}>{`${currency + ' ' + f(item.price)} / ${item.unit? item.unit : 'Units'}`}</span>}
                                 </div>
+                                { lineDiscount(discounts, item, index) > 0 &&
+                                    <div className='offer-line'>
+                                        <span><i className='mdi mdi-tag' /> { lineOfferNames(discounts, item, index).join(', ') || 'Offer' }</span>
+                                        <b>- {currency} {lineDiscount(discounts, item, index).toFixed(2)}</b>
+                                    </div>
+                                }
                                 { type !=='customer' && 
                                     <button
                                         className={`${ currentProduct === index && !item.return && theme === 'retro' ? "text-white":''} btn`}
@@ -759,6 +761,9 @@ function POS() {
                                 <div className="col-sm-6 d-flex justify-content-end align-items-center position-relative">
                                     <div className='position-absolute'>
                                         <p style={{lineHeight:2.1,whiteSpace:'nowrap'}}>
+                                            { offerDiscount > 0 && <span className='offer-savings me-3'>
+                                                <i className='mdi mdi-tag' /> - {currency} {offerDiscount.toFixed(2)}
+                                            </span> }
                                             <b> Total: &nbsp;
                                                 <span className="total-amount" style={{left:0,fontSize:'2.3rem'}}>
                                                     {currency} { showTotal() }
@@ -856,6 +861,7 @@ function POS() {
                         otherOpen={otherOpen}
                         catColors={catColors}
                         isInventory={inventory}
+                        offerBadges={badges}
                     />
                     {products.length === 0 && !Other && (<div className="lib-loader justify-content-center align-items-center" 
                     style={{height:'30rem',placeContent:'center',textAlign:'center'}} >

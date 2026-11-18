@@ -1,0 +1,216 @@
+/* Offers admin page and the offer badges / discount lines on the till. */
+.offers-page {
+    padding: 1.5rem 2rem;
+}
+.offers-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.offers-head h2 {
+    font-weight: 800;
+    margin: 0 0 0.25rem;
+}
+.offers-table th {
+    white-space: nowrap;
+    font-weight: 700;
+}
+.offers-table td {
+    vertical-align: middle;
+    font-size: 1rem;
+}
+.offer-rule {
+    display: inline-block;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    background: #f7f0e1;
+    color: #7a5a14;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.offer-targets {
+    max-width: 22rem;
+}
+.offer-chip {
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.offer-chip--running { background: #e5f4ec; color: #17804a; }
+.offer-chip--scheduled { background: #e7ecff; color: #1f2fc7; }
+.offer-chip--ended { background: #f1f1f1; color: #666; }
+.offer-chip--off { background: #fdecea; color: #b3261e; }
+
+/* on/off switch, big enough for a finger */
+.offer-switch {
+    position: relative;
+    width: 3.4rem;
+    height: 1.9rem;
+    flex: none;
+    border: 0;
+    border-radius: 999px;
+    background: #c9ccd6;
+    transition: background 0.15s;
+    padding: 0;
+}
+.offer-switch span {
+    position: absolute;
+    top: 0.2rem;
+    left: 0.2rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s;
+}
+.offer-switch.is-on {
+    background: #17804a;
+}
+.offer-switch.is-on span {
+    transform: translateX(1.5rem);
+}
+.offer-switch:disabled {
+    opacity: 0.5;
+}
+
+/* form */
+.offer-types {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+.offer-type {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    padding: 0.8rem 1rem;
+    border: 2px solid #dfe1e8;
+    border-radius: 0.8rem;
+    background: #fff;
+    text-align: left;
+}
+.offer-type small {
+    color: #666;
+}
+.offer-type.is-on {
+    border-color: #17804a;
+    background: #e5f4ec;
+}
+.offer-rule-sentence {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+}
+.offer-number {
+    width: 5.5rem !important;
+    display: inline-block !important;
+    text-align: center;
+    font-size: 1.3rem !important;
+    font-weight: 700;
+}
+.offer-example {
+    padding: 0.8rem 1rem;
+    border-radius: 0.8rem;
+    background: #f7f0e1;
+    font-size: 1rem;
+}
+.offer-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.offer-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.9rem;
+    border: 2px solid #dfe1e8;
+    border-radius: 999px;
+    cursor: pointer;
+    font-weight: 600;
+    margin: 0;
+}
+.offer-check.is-on {
+    border-color: #17804a;
+    background: #e5f4ec;
+}
+.offer-results {
+    max-height: 18rem;
+    overflow-y: auto;
+    border: 1px solid #dfe1e8;
+    border-radius: 0.6rem;
+}
+.offer-result {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    padding: 0.65rem 0.9rem;
+    border: 0;
+    border-bottom: 1px solid #eee;
+    background: #fff;
+    text-align: left;
+}
+.offer-result:disabled {
+    color: #17804a;
+    background: #f5fbf7;
+}
+.offer-chosen {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 22rem;
+    overflow-y: auto;
+}
+.offer-chosen li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+/* till: strip on top of a product tile (static: the tile's Tax/Items pop-up is positioned
+   against an outer element, so the tile must not become a positioned box), discount under a cart line */
+.offer-badge {
+    display: block;
+    width: 100%;
+    padding: 1px 8px;
+    border-radius: 6px 6px 0 0;
+    background: #a8812f;
+    text-align: center;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+.offer-line {
+    display: flex;
+    justify-content: space-between;
+    width: calc(100% - 44px); /* the line's remove button sits in the bottom-right corner */
+    margin-top: 2px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #e5f4ec;
+    color: #17804a;
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+.offer-savings {
+    color: #17804a;
+    font-weight: 700;
+}

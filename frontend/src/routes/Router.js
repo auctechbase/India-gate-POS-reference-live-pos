@@ -21,6 +21,9 @@ const Notes = lazy(() => import("../components/config/Notes.js"));
 const User = lazy(() => import("../components/config/User.js"));
 const Inventory = lazy(() => import("../components/inventory/Inventory.js"));
 const Website = lazy(() => import("../components/website/Website.js"));
+const Offers = lazy(() => import("../components/offers/Offers.js"));
+const OfferForm = lazy(() => import("../components/offers/OfferForm.js"));
+const CustomerDisplay = lazy(() => import("../components/pos/CustomerDisplay.js"));
 /*****Routes******/
 const ThemeRoutes = [
   {
@@ -41,6 +44,11 @@ const ThemeRoutes = [
       {
         path: "/reports",
         element: <Report key={110}/>,
+      },
+      {
+        // the second monitor (main.js opens it); ranked above /pos/:type? by react-router
+        path: "/pos/customer",
+        element: <CustomerDisplay key={13}/>,
       },
       {
         path: "/pos/:type?",
@@ -81,6 +89,14 @@ const ThemeRoutes = [
       {
         path: "/website",
         element: <Website key={12}/>,
+      },
+      {
+        path: "/offers",
+        element: <Offers key={14}/>,
+      },
+      {
+        path: "/offers/:id",
+        element: <OfferForm key={15}/>,
       },
 
     ],

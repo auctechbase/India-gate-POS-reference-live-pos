@@ -33,6 +33,7 @@ app.use("/notes", require("./routes/notes"));
 app.use("/config", require("./routes/config"));
 app.use("/website", require("./routes/website"));
 app.use("/analytics", require("./routes/analytics"));
+app.use("/offers", require("./routes/offers"));
 
 async function downloadAndExtract(url, zipName, destination) {
     const outputPath = path.join(config.tmpDir, zipName);
