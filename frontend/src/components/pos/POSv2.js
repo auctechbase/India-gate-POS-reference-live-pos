@@ -860,6 +860,7 @@ function POS() {
                         toggleModal={toggleModal}
                         otherOpen={otherOpen}
                         catColors={catColors}
+                        currency={currency || '€'}
                         isInventory={inventory}
                         offerBadges={badges}
                     />

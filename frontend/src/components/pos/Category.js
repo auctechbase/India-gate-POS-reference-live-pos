@@ -1,6 +1,20 @@
 import React, { memo, useState } from 'react'
-import { hexToRgb, isColorDark } from '../../helpers/utils'
 import { useSelector } from 'react-redux'
+import { categoryAccent, categoryTint } from '../../helpers/categoryColors'
+
+// Light button with the category's accent underneath (the selected one keeps the dark
+// .category-item.active style from the stylesheet).
+const buttonStyle = (cat) => {
+    const accent = categoryAccent(cat.id, cat.color);
+    return {
+        color: '#1f2328',
+        background: categoryTint(accent),
+        borderBottom: `4px solid ${accent}`,
+        borderRadius: 10,
+        fontWeight: 700,
+        minWidth: '150px',
+    };
+};
 
 function Category({categories, products, withAll, cRef, filter, handleDragStart, handleDragOver, handleDrop, scrollTop }) {
     const fs2 = {fontSize: '2rem'}
@@ -12,7 +26,7 @@ function Category({categories, products, withAll, cRef, filter, handleDragStart,
                 { categories.map((Cat,i) => ( withAll===false ? (products.findIndex( a => a.category_id===parseInt(Cat.id))!==-1) : true ) && (
                     <div key={i} 
                         className={`category-item ${i===currentCat?'active':''}`} 
-                        style={{color:isColorDark(hexToRgb(Cat.color))? 'white':'black',background:Cat.color,minWidth:'150px'}} 
+                        style={buttonStyle(Cat)}
                         onClick={()=>{filter(Cat.id);setCurrent(i)}}
                         draggable={true}
                         onDragStart={() => handleDragStart(i)}
