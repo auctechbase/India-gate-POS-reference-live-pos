@@ -59,6 +59,10 @@ module.exports = {
     dbPath: path.join(databaseDir, 'db.sqlite'),
     migrationsDir: path.join(rootDir, 'migrations'),
     tmpDir,
+    // Shop data the installer ships for new installs (see utils/shopData.js). Only inside the
+    // installed app; `electron .` and plain node have no resources/seed.
+    seedDir: process.env.POS_SEED_DIR
+        || (dataDir && process.resourcesPath ? path.join(process.resourcesPath, 'seed') : null),
     jwtSecret: loadJwtSecret(),
     // Off by default: on 401 the UI clears localStorage, which would empty a cart mid-sale.
     jwtExpiresIn: process.env.POS_JWT_EXPIRES_IN || null,

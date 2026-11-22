@@ -27,6 +27,7 @@
       "!docs/**",
       "!dist/**",
       "!.github/**",
+      "!seed/**",
       "!backend/database/**",
       "!backend/tmp/**",
       "!**/node_modules/**/*.md",
@@ -56,7 +57,17 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "shortcutName": "India Gate POS"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "seed",
+        "to": "seed",
+        "filter": [
+          "**/*",
+          "!README.md"
+        ]
+      }
+    ]
   },
   "keywords": [],
   "author": "India Gate",

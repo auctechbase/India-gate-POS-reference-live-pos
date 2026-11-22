@@ -96,6 +96,11 @@ async function migrate() {
 let server
 async function start() {
     try {
+        await require('./utils/shopData').loadShopData();
+    } catch (err) {
+        console.error('Loading the shop data failed:', err);
+    }
+    try {
         await migrate();
     } catch (err) {
         console.error('Database migration failed:', err);

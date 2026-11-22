@@ -58,6 +58,23 @@ jobs:
         env:
           CI: false
 
+      # India Gate's shop data (products and pictures) that a new install starts with
+      # (backend/utils/shopData.js). It is a release asset of this repo, never in git. Without it
+      # the installer is built empty.
+      - name: Get the shop data
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download shop-data --repo $env:GITHUB_REPOSITORY --pattern india-gate-shop-data.zip --dir seed-download
+          if ($LASTEXITCODE -eq 0) {
+            Expand-Archive seed-download/india-gate-shop-data.zip -DestinationPath seed -Force
+            Get-ChildItem seed/database
+          } else {
+            Write-Output "::warning::No shop-data release found: the installer is built without the shop data."
+          }
+          exit 0
+
       - name: Build the installer
         run: npm run dist:win
 
