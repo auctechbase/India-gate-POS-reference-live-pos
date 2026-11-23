@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Loader from "react-js-loader";
 import { Toaster } from "react-hot-toast";
 import Navbar from "./Navbar";
+import LogViewer from "../config/LogViewer";
 
 const FullLayout = () => { 
 
@@ -14,14 +15,29 @@ const FullLayout = () => {
     let isLoggedIn = userToken;
     const [ loading, setLoading] = useState(isLoading);
 
-    useEffect(()=> {  
+    // Support only: the log viewer is not on any menu (customers don't need it).
+    // Ctrl + Shift + L opens it on any screen, e.g. while connected to the till remotely.
+    const [ logsOpen, setLogsOpen ] = useState(false);
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+                e.preventDefault();
+                setLogsOpen(true);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
+
+    useEffect(()=> {
         setLoading(isLoading)
         return ()=>null
     },[userToken , isLoading, navigate ])
 
     return (
     <>
-        <Toaster/>	 
+        <Toaster/>
+        { isLoggedIn && <LogViewer isOpen={logsOpen} onClose={() => setLogsOpen(false)} /> }
         <div className={`${loading?'layout-item':"layout-item d-none"}`}> 
             <Loader type="spinner-default" bgColor={'gray'} color={'white'} size={70}/>
         </div>
