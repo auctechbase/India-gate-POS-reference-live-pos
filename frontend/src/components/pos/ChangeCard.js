@@ -5,7 +5,7 @@ const money = (currency, n) => `${String(currency || '€').trim()} ${Math.abs(n
 
 /**
  * After a payment: a big card at the top of the till with the change to give back
- * (e.g. paid € 20.00 for € 16.00 → "Give back € 4.00"). Shown for 6 seconds over the till
+ * (e.g. paid € 20.00 for € 16.00 → "Give back € 4.00"). Shown for 3.5 seconds over the till
  * (the toaster lives in the layout, so it stays when the POS returns to the till screen);
  * a tap closes it. It does not block the till: the next sale can start right away.
  */
@@ -29,5 +29,5 @@ export function showChangeCard({ total, paid, currency, isReturn }) {
             {t > 0 && <div className="change-card-detail">Paid {money(currency, p)} · Total {money(currency, t)}</div>}
             <div className="change-card-hint">Tap to close</div>
         </div>
-    ), { id: 'change-card', duration: 6000, position: 'top-center' });
+    ), { id: 'change-card', duration: 3500, position: 'top-center' });
 }

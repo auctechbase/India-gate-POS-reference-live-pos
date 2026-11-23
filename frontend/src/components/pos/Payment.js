@@ -385,7 +385,7 @@ export default function Payment()
             }
             dispatch({ type: "STOP_LOADING" });
 
-            // The change to give back, shown big over the till for 6 s (tap to close).
+            // The change to give back, shown big over the till for 3.5 s (tap to close).
             showChangeCard(changeInfo);
             navigate(`/pos`);
         } else {
