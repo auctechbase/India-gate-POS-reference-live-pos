@@ -68,30 +68,55 @@ app.on('ready', async () =>
     });
 
 
-    const displays = screen.getAllDisplays();
-    const customerDisplay = displays.length > 1 ? displays[1] : null;
-    if (customerDisplay) {
-        const customerWindow = new BrowserWindow({
-            width: customerDisplay.size.width,
-            height: customerDisplay.size.height,
-            x: customerDisplay.bounds.x,
-            y: customerDisplay.bounds.y,
-            frame: false, // Optional: Hide the window frame for a cleaner look
-            fullscreen: true, // Optional: Make it fullscreen on the display
-            alwaysOnTop: true, // Optional: Keep it on top
-            webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
-                preload: path.join(__dirname, 'preload.js')
-            },
-        });
-        customerWindow.loadURL(`http://localhost:${config.port}/#/pos/customer`);
-        customerWindow.setFullScreen(true)
-        windows.push(customerWindow)
-    } else {
-        console.log("No secondary display detected.");
-    }
+    openCustomerDisplay();
+    // The customer screen is often switched on after the POS: before, it then stayed empty until
+    // the POS was restarted. Now it opens when a screen is connected and closes when it goes
+    // (otherwise Windows moves it onto the till screen, full screen and always on top).
+    screen.on('display-added', () => setTimeout(openCustomerDisplay, 1500));
+    screen.on('display-removed', () => setTimeout(() => {
+        if (externalDisplay()) return;
+        const open = windows.filter(w => !w.isDestroyed());
+        if (open.length) log.info('app', 'Customer screen disconnected: customer display closed');
+        open.forEach(w => w.destroy());
+        windows = [];
+    }, 500));
 });
+
+// A screen that is not the till's own (primary) screen, or null.
+function externalDisplay() {
+    const primary = screen.getPrimaryDisplay();
+    return screen.getAllDisplays().find(d => d.id !== primary.id) || null;
+}
+
+// Opens the customer display on the second screen, unless it is open already or there is none.
+function openCustomerDisplay() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    windows = windows.filter(w => !w.isDestroyed());
+    if (windows.length) return;
+    const customerDisplay = externalDisplay();
+    if (!customerDisplay) {
+        log.info('app', 'No customer screen connected');
+        return;
+    }
+    const customerWindow = new BrowserWindow({
+        width: customerDisplay.size.width,
+        height: customerDisplay.size.height,
+        x: customerDisplay.bounds.x,
+        y: customerDisplay.bounds.y,
+        frame: false,
+        fullscreen: true,
+        alwaysOnTop: true,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        },
+    });
+    customerWindow.loadURL(`http://localhost:${config.port}/#/pos/customer`);
+    customerWindow.setFullScreen(true)
+    windows.push(customerWindow)
+    log.info('app', `Customer display opened on a ${customerDisplay.size.width}x${customerDisplay.size.height} screen`);
+}
 
 // Which printer each kind of print goes to, chosen under Configuration → Printers.
 // receipt: receipts, website order slips, reports and the cash drawer; label: barcode labels.
