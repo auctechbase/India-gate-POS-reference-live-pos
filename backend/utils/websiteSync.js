@@ -4,6 +4,7 @@ const { Model } = require('objection');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const config = require('../config');
+const log = require('./log');
 
 // Keeps the POS in step with the website's POS API (see docs/WEBSITE_SYNC.md):
 //  - polls GET /orders?updated_since=<cursor> and mirrors the orders into `web_orders`
@@ -25,6 +26,7 @@ let timer = null;
 let running = false;
 let stopped = true;
 let failures = 0;
+let lastLoggedError = null;
 // 'new-order' (order) fires once for each new pending order, so main.js can print its slip.
 const events = new EventEmitter();
 
@@ -178,6 +180,7 @@ async function applyOrders(orders, firstSync) {
     // by themselves (the cashier prints them from the order), only orders arriving afterwards.
     if (!firstSync && newPending.length && await isAutoPrintOn()) {
         for (const order of newPending) {
+            log.info('website', `New order ${order.order_number || order.id}: printing the slip`);
             try { events.emit('new-order', order); } catch (err) { console.error('Printing a website order failed:', err.message); }
         }
     }
@@ -228,11 +231,17 @@ async function runCycle() {
     try {
         await syncOnce();
         failures = 0;
+        if (lastLoggedError) { log.info('website', 'Sync works again'); lastLoggedError = null; }
         return { ok: true };
     } catch (err) {
         failures += 1;
         status.connected = false;
         status.lastError = err.isAxiosError ? describeNetwork(err) : err.message;
+        // Logged once per new problem, not every 7 seconds.
+        if (status.lastError !== lastLoggedError) {
+            lastLoggedError = status.lastError;
+            log.warn('website', `Sync failed: ${status.lastError}`, err.httpStatus ? { http: err.httpStatus } : undefined);
+        }
         return { ok: false, httpStatus: err.httpStatus };
     } finally {
         running = false;

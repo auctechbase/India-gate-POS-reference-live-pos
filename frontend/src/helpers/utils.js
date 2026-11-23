@@ -1,6 +1,7 @@
 import $ from 'jquery'
 import { IMAGE_URL } from '../config';
 import toast from 'react-hot-toast';
+import { reportToLog } from './errorLog';
 const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const validate = (fields,exceptions=[]) => {
     let result={}
@@ -176,6 +177,8 @@ export const capitalFirst = (string) => {
 }
 
 export const Warning = msg => {
+    // Warnings the cashier sees (printer problems, "pay the remaining amount", …) go to the log too.
+    reportToLog('shown', typeof msg === 'string' ? msg : (msg?.message || 'warning'), '', 'warn');
     return toast(msg,
         {
           icon: '⚠️',

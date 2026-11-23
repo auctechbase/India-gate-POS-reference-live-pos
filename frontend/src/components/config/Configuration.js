@@ -10,6 +10,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { Modal, ModalHeader, ModalFooter, ModalBody, FormGroup, Form } from 'reactstrap';
 import PrinterSettings from './PrinterSettings';
+import LogViewer from './LogViewer';
 
 function Configuration() {
     const keyboardRef = useRef();
@@ -19,6 +20,7 @@ function Configuration() {
     const [ minStock, setAlert ] = useState(stockAlert)
     const [ focused, setFocused ] = useState(false)
     const [ printerModal, setPrinterModal ] = useState(false)
+    const [ logModal, setLogModal ] = useState(false)
     const dispatch = useDispatch();
     const updateCurrency = () => {
         axios.get("https://api.apilayer.com/exchangerates_data/latest?symbols=EUR&base=INR", {
@@ -49,7 +51,7 @@ function Configuration() {
     
     
     const senty = {placeContent:'center'}
-    const tileCol = {width:'clamp(200px, 17vw, 340px)'}
+    const tileCol = {width:'clamp(180px, 14vw, 300px)'}
     // presetting text
     const [ presetTxt, setPreset ] = useState(minStock)
     useEffect(() => {
@@ -137,6 +139,21 @@ function Configuration() {
                         </div>
                         {theme==='default' && <h5 className="pt-3 fs-2"> Printers </h5>}
                     </div>
+
+                    <div className="text-center" style={tileCol}>
+                        <div className="card redirect tablink" onClick={()=> setLogModal(true)} title="See the logs">
+                            <div className="card-body">
+                            {theme==='default' ?
+                                <div className="d-flex" title="See the logs" style={senty}>
+                                    <div style={{width:'70px', textAlign:'center'}} >
+                                        <i className="mdi mdi-file-document-alert-outline" style={{fontSize:'64px', lineHeight:'80px', color:'#1e283d'}} />
+                                    </div>
+                                </div>
+                            : <h1>Logs</h1>}
+                            </div>
+                        </div>
+                        {theme==='default' && <h5 className="pt-3 fs-2"> Logs </h5>}
+                    </div>
                 </div>
             </div>
 
@@ -184,6 +201,7 @@ function Configuration() {
         </Modal>
 
         <PrinterSettings isOpen={printerModal} onClose={() => setPrinterModal(false)} />
+        <LogViewer isOpen={logModal} onClose={() => setLogModal(false)} />
 
         {focused && !hasKeyboard && <TouchKeyboard
                 open

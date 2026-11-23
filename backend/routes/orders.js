@@ -18,6 +18,7 @@ const { getStoreSetting, isInventoryOn } = require('../utils/settings');
 const { toNumber, round2, parseTaxRate, includedTax, cashPortion, paymentBreakdown } = require('../utils/money');
 const { generatePdf, getCurrentDate } = require('../utils');
 const config = require('../config');
+const log = require('../utils/log');
 
 let b64;
 const logoPath = config.findLogoPath();
@@ -79,6 +80,7 @@ router.post('/create', fetchuser, async (req, res) => {
         }
         const register = body.cash_register_id && await CashRegister.query().findById(body.cash_register_id);
         if (!register || !register.status) {
+            log.warn('payment', `Refused: cash register ${body.cash_register_id ?? '(none)'} is ${register ? 'closed' : 'not in the database'}`, { amount: body.amount, payment: body.payment_mode });
             return res.status(400).json({ status: false, code: 'REGISTER_CLOSED', message: 'The cash register is closed, open the day first!' });
         }
 
@@ -131,6 +133,7 @@ router.post('/create', fetchuser, async (req, res) => {
             return created;
         });
 
+        log.info('payment', `Sale saved: ${body.amount} by ${body.payment_mode || '?'} (register ${body.cash_register_id}, cart ${body.session_id})`);
         return res.status(200).json({ status: true, message: 'Transaction completed!', html: body.receiptData, notifications });
     } catch (error) {
         console.error('Transaction error:', error);

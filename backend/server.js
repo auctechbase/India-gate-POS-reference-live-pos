@@ -23,6 +23,31 @@ app.use(express.json({ limit: '5mb' }));
 app.use('/images', express.static(config.tmpDir));
 app.use(express.static(config.buildPath))
 
+// Every request that fails is logged: HTTP errors, and the many routes that answer
+// { status: false, message } with 200. The same failure is written at most once a minute.
+const requestLog = require('./utils/log');
+const lastFailure = new Map();
+app.use((req, res, next) => {
+    if (req.path.startsWith('/logs')) return next();
+    const json = res.json.bind(res);
+    res.json = (body) => {
+        try {
+            const failed = res.statusCode >= 400 || (body && typeof body === 'object' && body.status === false);
+            if (failed) {
+                const message = (body && (body.message || body.error)) || `HTTP ${res.statusCode}`;
+                const key = `${req.method} ${req.path} ${message}`;
+                if (Date.now() - (lastFailure.get(key) || 0) > 60000) {
+                    lastFailure.set(key, Date.now());
+                    const write = res.statusCode >= 500 ? requestLog.error : requestLog.warn;
+                    write('request', `${req.method} ${req.originalUrl} → ${res.statusCode}: ${message}`);
+                }
+            }
+        } catch (e) { /* logging never breaks a reply */ }
+        return json(body);
+    };
+    next();
+});
+
 app.use("/auth", require("./routes/auth"));
 app.use("/products", require("./routes/products"));
 app.use("/orders", require("./routes/orders"));
@@ -34,6 +59,7 @@ app.use("/config", require("./routes/config"));
 app.use("/website", require("./routes/website"));
 app.use("/analytics", require("./routes/analytics"));
 app.use("/offers", require("./routes/offers"));
+app.use("/logs", require("./routes/logs"));
 
 async function downloadAndExtract(url, zipName, destination) {
     const outputPath = path.join(config.tmpDir, zipName);
@@ -80,7 +106,7 @@ app.get(`/install-backend-update`, remoteUpdatesAllowed, fetchuser.optional, asy
 // Any error a route didn't handle ends up here instead of crashing or hanging the request.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-    console.error(err);
+    console.error(`${req.method} ${req.originalUrl} failed:`, err);
     res.status(err.status || 500).json({ status: false, message: err.message || 'Something went wrong!' });
 });
 
@@ -95,6 +121,10 @@ async function migrate() {
 
 let server
 async function start() {
+    const log = require('./utils/log');
+    log.captureConsole();
+    log.removeOld();
+    log.info('server', `Starting on port ${config.port}`, { database: config.dbPath });
     try {
         await require('./utils/shopData').loadShopData();
     } catch (err) {

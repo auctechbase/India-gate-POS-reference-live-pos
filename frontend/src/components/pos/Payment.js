@@ -10,6 +10,7 @@ import { useSearch } from '../../contexts/SearchContext';
 import { TaxTable } from '../layouts/Navbar';
 import './PayPad.css';
 import { showChangeCard } from './ChangeCard';
+import { reportToLog } from '../../helpers/errorLog';
 import '../offers/Offers.css';
 import { useOfferDiscounts, lineDiscount, lineOfferNames, cartDiscount, paidContent, sendToDisplay } from '../../helpers/offers';
 
@@ -299,6 +300,7 @@ export default function Payment()
             // receipt): the error escaped and `processing` was never reset.
             setProcess(false);
             const reply = error.response?.data;
+            reportToLog('payment', `Payment not saved: ${reply?.message || error.message}`, `HTTP ${error.response?.status ?? 'no answer'}`);
             if (reply?.code === 'REGISTER_CLOSED') {
                 // The day this till remembers is not open on the server: open it again; the cart stays.
                 dispatch({ type: 'SET_CASH', payload: {} });

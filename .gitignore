@@ -11,3 +11,6 @@ dist/
 # Shop data for new installs: downloaded at build time, never committed
 seed/*
 !seed/README.md
+
+# POS log files when run outside the app (node backend/server.js, tests)
+backend/logs/

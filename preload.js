@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getPrinterChoice: () => ipcRenderer.invoke("get-printer-choice"),
     setPrinterChoice: choice => ipcRenderer.invoke("set-printer-choice", choice),
     testPrint: kind => ipcRenderer.send("test-print", kind),
+    exportLogs: () => ipcRenderer.invoke("export-logs"),
     closeApp: () => ipcRenderer.send("close-window"),
     relaunch: () => ipcRenderer.send("relaunch"),
     dialog: () => ipcRenderer.send("open-dialog"),

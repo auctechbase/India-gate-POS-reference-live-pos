@@ -8,6 +8,9 @@ import App from './App';
 import Loader from "./components/layouts/Loader";
 import { SearchProvider } from './contexts/SearchContext';
 import reportWebVitals from './reportWebVitals';
+import { installErrorLog } from './helpers/errorLog';
+
+installErrorLog();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

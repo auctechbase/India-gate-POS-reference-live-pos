@@ -18,6 +18,7 @@ const dataDir = electronDataDir();
 const databaseDir = process.env.POS_DATABASE_DIR || (dataDir ? path.join(dataDir, 'database') : path.join(rootDir, 'database'));
 const tmpDir = process.env.POS_TMP_DIR || (dataDir ? path.join(dataDir, 'files') : path.join(rootDir, 'tmp'));
 const buildPath = process.env.POS_BUILD_PATH || path.join(rootDir, 'client/build');
+const logsDir = process.env.POS_LOG_DIR || (dataDir ? path.join(dataDir, 'logs') : path.join(rootDir, 'logs'));
 
 fs.mkdirSync(databaseDir, { recursive: true });
 for (const dir of ['', 'products', 'notes', 'temp', 'reports', 'converted']) {
@@ -59,6 +60,7 @@ module.exports = {
     dbPath: path.join(databaseDir, 'db.sqlite'),
     migrationsDir: path.join(rootDir, 'migrations'),
     tmpDir,
+    logsDir,
     // Shop data the installer ships for new installs (see utils/shopData.js). Only inside the
     // installed app; `electron .` and plain node have no resources/seed.
     seedDir: process.env.POS_SEED_DIR

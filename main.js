@@ -1,8 +1,15 @@
 const electron = require('electron')
-const { app, BrowserWindow, screen } = require('electron');
+const { app, BrowserWindow, screen, shell } = require('electron');
 const path = require('path');
+const { execFile } = require('child_process');
 const bwipjs = require('bwip-js');
 const server = require('./backend/server');
+const log = require('./backend/utils/log');
+
+// Problems in the desktop app itself go to the log too (the backend adds console.error/warn).
+log.captureConsole();
+process.on('uncaughtExceptionMonitor', (error) => log.error('app', 'Uncaught error', error));
+process.on('unhandledRejection', (reason) => log.error('app', 'Unhandled promise rejection', reason instanceof Error ? reason : String(reason)));
 const { ipcMain } = require("electron");
 const fs = require('fs');
 const config = require('./backend/config');
@@ -20,6 +27,7 @@ let windows=[]
 app.on('ready', async () => 
 {
     await server.start();
+    log.info('app', `India Gate POS ${app.getVersion()} started`, { electron: process.versions.electron, printers: readPrinterChoice() });
     const { width, height } = electron.screen.getPrimaryDisplay().workAreaSize
     mainWindow = new BrowserWindow({
         width,
@@ -43,7 +51,15 @@ app.on('ready', async () =>
         mainWindow.show();
         mainWindow.maximize();
         mainWindow.setFullScreen(true)
+        // Ask the drivers for their paper now, so the first receipt doesn't wait for it.
+        mainWindow.webContents.getPrintersAsync().then((printers) => {
+            logPrinters(printers).catch(() => {});
+            const names = new Set([...Object.values(readPrinterChoice()).filter(Boolean), printers.find(p => p.isDefault)?.name].filter(Boolean));
+            names.forEach((name) => { if (printers.some(p => p.name === name)) driverPaper(name); });
+        }).catch(() => {});
     });
+    mainWindow.webContents.on('render-process-gone', (event, details) => log.error('app', 'The POS screen crashed', details));
+    mainWindow.webContents.on('unresponsive', () => log.warn('app', 'The POS screen stopped responding'));
     mainWindow.on('closed', () => {
         mainWindow = null;
         // Close the customer display too, otherwise the app never quits.
@@ -92,40 +108,220 @@ function readPrinterChoice() {
     }
 }
 
-// Shown on the till as a warning; before, a failed print only went to the console.
+// Shown on the till as a warning (and written to the log); before, a failed print only went to
+// the console.
 function reportPrintError(message) {
-    console.error(message);
+    log.error('print', message);
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('has-error', message);
 }
 
-// The print options for `kind`: the chosen printer while it is still installed, else the default.
-async function printerOptions(kind, webContents, options) {
-    const chosen = readPrinterChoice()[kind];
-    if (!chosen) return options;
-    try {
-        const printers = await webContents.getPrintersAsync();
-        if (printers.some(printer => printer.name === chosen)) return { ...options, deviceName: chosen };
-        reportPrintError(`Printer "${chosen}" is not installed any more: printed on the default printer. Choose another under Configuration → Printers.`);
-    } catch (error) {
-        console.error('Could not list the printers:', error.message);
-    }
-    return options;
+// The paper the printer's own driver uses (its default form), in microns. Chromium cannot read
+// some receipt drivers' forms (POS-80C: a nameless "custom" 72 x 297 mm form): it then calls the
+// settings invalid and drops the print without a word, so nothing reaches the Windows queue.
+// Passing the driver's own size prints exactly as the old POS did. Asked once per printer.
+const paperCache = new Map();
+const queueChecks = new Set(); // printers with a queue check already planned
+const FALLBACK_PAPER = { receipt: { width: 72000, height: 297000, name: '72 x 297 mm (fallback)' } };
+const PAPER_SCRIPT = [
+    'Add-Type -AssemblyName System.Drawing;',
+    '$s = New-Object System.Drawing.Printing.PrinterSettings; $s.PrinterName = $env:POS_PRINTER_NAME;',
+    'if (-not $s.IsValid) { exit 2 }',
+    '$p = $s.DefaultPageSettings.PaperSize;',
+    '[Console]::Out.Write("$($p.Width)|$($p.Height)|$($p.PaperName)")',
+].join(' ');
+
+function driverPaper(printerName) {
+    if (paperCache.has(printerName)) return paperCache.get(printerName);
+    const lookup = new Promise((resolve) => {
+        execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', PAPER_SCRIPT], {
+            env: { ...process.env, POS_PRINTER_NAME: printerName }, timeout: 15000, windowsHide: true,
+        }, (error, stdout) => {
+            const [w, h, name] = String(stdout || '').trim().split('|');
+            const width = Math.round(Number(w) * 254); // hundredths of an inch → microns
+            const height = Math.round(Number(h) * 254);
+            if (error || !(width >= 10000) || !(height >= 10000)) {
+                log.warn('print', `Could not read the paper size of "${printerName}"`, error ? error.message : stdout);
+                paperCache.delete(printerName); // try again next time
+                return resolve(null);
+            }
+            const paper = { width, height, name: `${name || 'custom'} ${(width / 1000).toFixed(0)} x ${(height / 1000).toFixed(0)} mm` };
+            log.info('print', `Paper of "${printerName}": ${paper.name}`);
+            resolve(paper);
+        });
+    });
+    paperCache.set(printerName, lookup);
+    return lookup;
 }
 
-// Loads `html` in a hidden window and prints it on the printer chosen for `kind`.
-function printHtml(kind, html, options, what) {
-    const printWindow = new BrowserWindow({ show: false });
-    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    printWindow.webContents.once('did-finish-load', async () => {
-        const settings = await printerOptions(kind, printWindow.webContents, options);
-        printWindow.webContents.print(settings, (success, reason) => {
-            if (!success && reason !== 'cancelled') {
-                reportPrintError(`${what} not printed${settings.deviceName ? ` on "${settings.deviceName}"` : ''}: ${reason || 'printer error'}. Check that the printer is on and connected.`);
-            }
-            if (!printWindow.isDestroyed()) printWindow.close();
+// Windows printer status flags (PRINTER_STATUS_*) that mean it will not print right now.
+const PROBLEM_FLAGS = [
+    [0x1, 'paused'], [0x2, 'in error'], [0x4, 'being deleted'], [0x8, 'paper jam'], [0x10, 'out of paper'],
+    [0x40, 'paper problem'], [0x80, 'offline'], [0x800, 'output bin full'], [0x1000, 'not available'],
+    [0x40000, 'out of toner'], [0x100000, 'needs attention'], [0x400000, 'door open'],
+];
+const printerProblems = (status) => PROBLEM_FLAGS.filter(([flag]) => (Number(status) & flag) !== 0).map(([, text]) => text);
+
+// What waits in a printer's Windows queue: jobs that stay there mean the printer is not taking
+// them (unplugged, off, paused). The POS-80C on the office PC still held jobs from months before.
+const QUEUE_SCRIPT = [
+    '$j = @(Get-PrintJob -PrinterName $env:POS_PRINTER_NAME -ErrorAction Stop);',
+    '$o = $j | Sort-Object SubmittedTime | Select-Object -First 1;',
+    '[Console]::Out.Write("$($j.Count)|$(if ($o) { $o.SubmittedTime.ToString(\'yyyy-MM-dd HH:mm:ss\') })|$(if ($o) { $o.JobStatus })")',
+].join(' ');
+function printQueue(printerName) {
+    return new Promise((resolve) => {
+        execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', QUEUE_SCRIPT], {
+            env: { ...process.env, POS_PRINTER_NAME: printerName }, timeout: 15000, windowsHide: true,
+        }, (error, stdout) => {
+            if (error) return resolve(null);
+            const [count, oldest, status] = String(stdout || '').trim().split('|');
+            resolve({ count: Number(count) || 0, oldest: oldest || null, status: status || '' });
         });
     });
 }
+
+// Logs the queue of `printerName`; warns the cashier when jobs older than a minute are stuck.
+async function checkQueue(printerName, why) {
+    const queue = await printQueue(printerName);
+    if (!queue) return;
+    if (queue.count === 0) return log.info('print', `Queue of "${printerName}" is empty (${why})`);
+    const ageMs = queue.oldest ? Date.now() - new Date(queue.oldest.replace(' ', 'T')).getTime() : 0;
+    const text = `${queue.count} job(s) waiting in the Windows queue of "${printerName}", oldest from ${queue.oldest}${queue.status ? ` (${queue.status})` : ''}`;
+    if (ageMs > 60000) {
+        reportPrintError(`${text}: the printer is not taking them. Check that it is on and connected, or clear its queue in Windows.`);
+    } else {
+        log.info('print', `${text} (${why})`);
+    }
+}
+
+// At start: every printer with its Windows status, and the queues of the ones the POS uses.
+async function logPrinters(printers) {
+    const choice = readPrinterChoice();
+    const def = printers.find(p => p.isDefault)?.name;
+    log.info('print', `Printers: ${printers.map(p => `${p.name}${p.isDefault ? ' [default]' : ''}${printerProblems(p.status).length ? ` (${printerProblems(p.status).join(', ')})` : ''}`).join('; ') || 'none'}`);
+    log.info('print', `Receipts go to "${choice.receipt || def || 'none'}"${choice.receipt ? '' : ' (Windows default)'}, labels to "${choice.label || def || 'none'}"${choice.label ? '' : ' (Windows default)'}`);
+    for (const name of new Set([choice.receipt, choice.label, def].filter(Boolean))) {
+        if (printers.some(p => p.name === name)) checkQueue(name, 'at start');
+        else log.warn('print', `Printer "${name}" is not installed`);
+    }
+}
+
+// Which printer `kind` goes to: the chosen one while it is still installed, else the Windows
+// default. Warns when Windows reports it offline, paused, out of paper and so on.
+async function resolvePrinter(kind) {
+    const chosen = readPrinterChoice()[kind];
+    const wc = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : BrowserWindow.getAllWindows()[0]?.webContents;
+    let printers = [];
+    try {
+        if (wc) printers = await wc.getPrintersAsync();
+    } catch (error) {
+        log.warn('print', 'Could not list the printers', error.message);
+    }
+    let name = null;
+    let isChosen = false;
+    if (chosen) {
+        if (printers.some(printer => printer.name === chosen)) { name = chosen; isChosen = true; }
+        else reportPrintError(`Printer "${chosen}" is not installed any more: printing on the default printer. Choose another under Configuration → Printers.`);
+    }
+    if (!name) name = printers.find(printer => printer.isDefault)?.name || null;
+    if (!name) {
+        if (printers.length || !wc) log.warn('print', 'No default printer found in Windows');
+        else reportPrintError('No printer is set up in Windows (no default printer). Install the printer, or choose one under Configuration → Printers.');
+        return null;
+    }
+    const problems = printerProblems(printers.find(p => p.name === name)?.status);
+    if (problems.length) {
+        reportPrintError(`Printer "${name}" is ${problems.join(', ')}: the print waits in the Windows queue until the printer is ready.`);
+    }
+    return { name, isChosen };
+}
+
+// One print in a fresh hidden window. Resolves 'ok', 'cancelled', 'no answer' or 'failed: …'.
+function printOnce(html, settings, waitMs) {
+    return new Promise((resolve) => {
+        const win = new BrowserWindow({ show: false });
+        let done = false;
+        let timer = setTimeout(() => finish('failed: the page to print did not load'), 15000);
+        function finish(result) {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            if (!win.isDestroyed()) win.destroy();
+            resolve(result);
+        }
+        win.webContents.once('did-finish-load', () => {
+            clearTimeout(timer);
+            // Chromium does not always answer (settings it calls invalid): don't wait for ever.
+            timer = setTimeout(() => finish('no answer'), waitMs);
+            try {
+                win.webContents.print(settings, (ok, reason) => finish(ok ? 'ok' : reason === 'cancelled' ? 'cancelled' : `failed: ${reason || 'printer error'}`));
+            } catch (error) {
+                finish(`failed: ${error.message}`);
+            }
+        });
+        win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    });
+}
+
+const mm = (size) => `${(size.width / 1000).toFixed(0)} x ${(size.height / 1000).toFixed(0)} mm`;
+
+// Prints `html` on the printer for `kind` (receipt or label).
+// 1. Exactly as the old POS (which prints every day at the shop): silent, on the default printer,
+//    or on the chosen one; the paper is the driver's own.
+// 2. Only if that gets no answer or fails: once more, naming the printer and passing the driver's
+//    paper size. A newer engine (Electron 34.5) silently dropped POS-80C prints because it could
+//    not read that driver's nameless custom paper; with the size given it prints.
+async function printHtml(kind, html, options, what) {
+    try {
+        const printer = await resolvePrinter(kind);
+        const first = { ...options };
+        if (printer?.isChosen) first.deviceName = printer.name;
+        let used = first;
+        let result = await printOnce(html, first, 10000);
+        if (result !== 'ok' && result !== 'cancelled' && printer) {
+            log.warn('print', `${what}: first try on "${printer.name}" gave "${result}"; trying again with the driver's paper size`);
+            const paper = options.pageSize || (await driverPaper(printer.name)) || FALLBACK_PAPER[kind];
+            used = { ...options, deviceName: printer.name, ...(paper ? { pageSize: { width: paper.width, height: paper.height } } : {}) };
+            result = await printOnce(html, used, 20000);
+        }
+        const where = ` on "${used.deviceName || printer?.name || 'the default printer'}"`;
+        const paperText = used.pageSize ? ` (paper ${mm(used.pageSize)})` : " (the printer's own paper)";
+        if (result === 'ok') {
+            log.info('print', `${what} sent${where}${paperText}${used === first ? '' : ' on the second try'}`);
+            // "Sent" only means Windows has it: check a little later that it left the queue.
+            const queueOf = used.deviceName || printer?.name;
+            if (queueOf && !queueChecks.has(queueOf)) {
+                queueChecks.add(queueOf);
+                setTimeout(() => {
+                    queueChecks.delete(queueOf);
+                    checkQueue(queueOf, `after: ${what}`).catch(() => {});
+                }, 30000);
+            }
+        } else if (result !== 'cancelled') {
+            const why = result === 'no answer' ? 'the printer did not respond' : result.replace(/^failed: /, '');
+            reportPrintError(`${what} not printed${where}: ${why}. Check that the printer is on, connected and not paused.`);
+        }
+    } catch (error) {
+        reportPrintError(`${what} not printed: ${error.message}`);
+    }
+}
+
+// Configuration → Logs → Save logs: one text file on the Desktop to send for support.
+ipcMain.handle('export-logs', async () => {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const file = path.join(app.getPath('desktop'), `India-Gate-POS-log-${stamp}.txt`);
+    let printers = [];
+    try { printers = mainWindow ? await mainWindow.webContents.getPrintersAsync() : []; } catch (error) { /* none */ }
+    const choice = readPrinterChoice();
+    fs.writeFileSync(file, log.exportText(7, [
+        `App: India Gate POS ${app.getVersion()} | Electron ${process.versions.electron}`,
+        `Printers: ${printers.map(p => `${p.name}${p.isDefault ? ' (default)' : ''}`).join(', ') || 'none'}`,
+        `Chosen printers: receipt = ${choice.receipt || 'Windows default'}, label = ${choice.label || 'Windows default'}`,
+    ]));
+    shell.showItemInFolder(file);
+    log.info('app', `Log saved to ${file}`);
+    return file;
+});
 
 ipcMain.handle('get-printer-choice', () => readPrinterChoice());
 
