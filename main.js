@@ -77,26 +77,71 @@ app.on('ready', async () =>
     }
 });
 
-const openDrawer = async () => {
+// Which printer each kind of print goes to, chosen under Configuration → Printers.
+// receipt: receipts, website order slips, reports and the cash drawer; label: barcode labels.
+// Empty means the Windows default printer (the only behaviour before).
+const PRINTER_KINDS = ['receipt', 'label'];
+const printerFile = () => path.join(app.getPath('userData'), 'printers.json');
+
+function readPrinterChoice() {
+    try {
+        const saved = JSON.parse(fs.readFileSync(printerFile(), 'utf8'));
+        return { receipt: String(saved.receipt || ''), label: String(saved.label || '') };
+    } catch (error) {
+        return { receipt: '', label: '' };
+    }
+}
+
+// Shown on the till as a warning; before, a failed print only went to the console.
+function reportPrintError(message) {
+    console.error(message);
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('has-error', message);
+}
+
+// The print options for `kind`: the chosen printer while it is still installed, else the default.
+async function printerOptions(kind, webContents, options) {
+    const chosen = readPrinterChoice()[kind];
+    if (!chosen) return options;
+    try {
+        const printers = await webContents.getPrintersAsync();
+        if (printers.some(printer => printer.name === chosen)) return { ...options, deviceName: chosen };
+        reportPrintError(`Printer "${chosen}" is not installed any more: printed on the default printer. Choose another under Configuration → Printers.`);
+    } catch (error) {
+        console.error('Could not list the printers:', error.message);
+    }
+    return options;
+}
+
+// Loads `html` in a hidden window and prints it on the printer chosen for `kind`.
+function printHtml(kind, html, options, what) {
     const printWindow = new BrowserWindow({ show: false });
-    const html = `<html><body><style>@page{size:auto;margin:1mm 0mm 0mm 1mm;}</style></body></html>`;
-  
     printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    printWindow.webContents.on("did-finish-load", () => {
-        printWindow.webContents.print({ 
-	silent:true,
-	pageSize: {
-	    height: 2000,
-	    width: 40000
-	}
-    }, (success, error) => {
-            if (!success || error) { 
-                if (error) console.error('Error writing to file:', error)
-            };
-            printWindow.close();
+    printWindow.webContents.once('did-finish-load', async () => {
+        const settings = await printerOptions(kind, printWindow.webContents, options);
+        printWindow.webContents.print(settings, (success, reason) => {
+            if (!success && reason !== 'cancelled') {
+                reportPrintError(`${what} not printed${settings.deviceName ? ` on "${settings.deviceName}"` : ''}: ${reason || 'printer error'}. Check that the printer is on and connected.`);
+            }
+            if (!printWindow.isDestroyed()) printWindow.close();
         });
     });
+}
 
+ipcMain.handle('get-printer-choice', () => readPrinterChoice());
+
+ipcMain.handle('set-printer-choice', (event, choice = {}) => {
+    const next = readPrinterChoice();
+    for (const kind of PRINTER_KINDS) {
+        if (typeof choice[kind] === 'string') next[kind] = choice[kind];
+    }
+    fs.writeFileSync(printerFile(), JSON.stringify(next, null, 2));
+    return next;
+});
+
+const openDrawer = async () => {
+    // An empty page: printing it makes the receipt printer kick the cash drawer open.
+    const html = `<html><body><style>@page{size:auto;margin:1mm 0mm 0mm 1mm;}</style></body></html>`;
+    printHtml('receipt', html, { silent: true, pageSize: { height: 2000, width: 40000 } }, 'Cash drawer');
 };
 
 ipcMain.on("exit-fullscreen", (e,screen) => {
@@ -139,10 +184,9 @@ ipcMain.handle('get-printers', async (event) => {
     }
 })
 
-// Prints a receipt body on the default printer with the shop logo on top. Used by the UI
+// Prints a receipt body on the receipt printer with the shop logo on top. Used by the UI
 // (print-content) and for new website orders.
-function printReceipt(content) {
-    const printWindow = new BrowserWindow({ show: false });
+function printReceipt(content, what = 'Receipt') {
     const html = `<html><style> @page{ size:auto; margin:-5mm 3mm 3mm 2mm }
         *{font-weight:400!important;text-transform:uppercase;font-size:0.85rem!important;font-family:system-ui!important}
         .toShow{display:inline!important;}
@@ -170,16 +214,7 @@ function printReceipt(content) {
             <p>Generated: ${new Date().toLocaleString()}</p>
         </div>
     </body></html>`;
-  
-    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    printWindow.webContents.on("did-finish-load", () => {
-        printWindow.webContents.print({ silent:true }, (success, error) => {
-            if (!success || error) { 
-                if (error) console.error('Error writing to file:', error)
-            };
-            printWindow.close();
-        });
-    });
+    printHtml('receipt', html, { silent: true }, what);
 }
 
 ipcMain.on("print-content", (event, content) => printReceipt(content));
@@ -187,7 +222,7 @@ ipcMain.on("print-content", (event, content) => printReceipt(content));
 // A new website order arrives: print its slip right away, whichever screen is open.
 websiteSync.events.on('new-order', (order) => {
     try {
-        printReceipt({ html: receiptHtml(order) });
+        printReceipt({ html: receiptHtml(order) }, 'Website order slip');
     } catch (error) {
         console.error('Could not print the website order:', error.message);
     }
@@ -195,23 +230,22 @@ websiteSync.events.on('new-order', (order) => {
 
 ipcMain.on(`print-report`, async(event, html) => {
     try {
-        const printWin = new BrowserWindow({ show:false });
-        printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-        printWin.webContents.on("did-finish-load", () => {
-            printWin.webContents.print(
-                { silent: true, printBackground: true },
-                (success, errorType) => {
-                    if (!success) console.error("Failed to print:", errorType);
-                    printWin.close(); // Close the hidden window after printing
-                }
-            );
-        });
+        printHtml('receipt', String(html ?? ''), { silent: true, printBackground: true }, 'Report');
     } catch (error) {
         console.log(error.message)
     }
 })
 
-ipcMain.on("generate-barcode", async (event, content)=> {
+// Configuration → Printers → Test print: a short slip or a sample label on the chosen printer.
+ipcMain.on('test-print', (event, kind) => {
+    if (kind === 'label') {
+        printBarcode({ name: 'Test label', price: '1.00', code: '1234567890128' });
+    } else {
+        printReceipt({ html: '<h3 style="text-align:center">Test print</h3><p style="text-align:center">The receipt printer works.</p>' }, 'Test print');
+    }
+});
+
+async function printBarcode(content) {
     try {
         let {name,price,code} = content
         const currency = content.currency || '€';
@@ -227,7 +261,6 @@ ipcMain.on("generate-barcode", async (event, content)=> {
             textyalign:'below'
         });
 
-        const printWindow = new BrowserWindow({ show: false }); 
         const barcodeHTML = `<html>
             <style>
                 @page{size:auto;margin:1mm 0mm 0mm 1mm }
@@ -244,21 +277,13 @@ ipcMain.on("generate-barcode", async (event, content)=> {
             </body>
         </html>`;
 
-        printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(barcodeHTML)}`);
-
-        printWindow.webContents.on("did-finish-load", () => {
-            printWindow.webContents.print(
-                { silent: true },
-                (success, errorType) => {
-                    if (!success) console.error("Failed to print:", errorType);
-                    printWindow.close(); // Close the hidden window after printing
-                }
-            );
-        });
+        printHtml('label', barcodeHTML, { silent: true }, 'Barcode label');
     } catch (error) {
-        console.log(error.message)
+        reportPrintError(`Barcode label not printed: ${error.message}`);
     }
-})
+}
+
+ipcMain.on("generate-barcode", (event, content) => printBarcode(content));
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();

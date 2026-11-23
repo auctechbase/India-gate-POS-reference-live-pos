@@ -79,7 +79,7 @@ router.post('/create', fetchuser, async (req, res) => {
         }
         const register = body.cash_register_id && await CashRegister.query().findById(body.cash_register_id);
         if (!register || !register.status) {
-            return res.status(400).json({ status: false, message: 'The cash register is closed, open the day first!' });
+            return res.status(400).json({ status: false, code: 'REGISTER_CLOSED', message: 'The cash register is closed, open the day first!' });
         }
 
         // Everything below is saved together or not at all.

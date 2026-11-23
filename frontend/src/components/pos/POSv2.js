@@ -497,6 +497,26 @@ function POS() {
     
     const {type} = useParams();
 
+    // The open day is kept in the browser and goes stale when the database is replaced (shop data
+    // import, a new install's starting data) or the day is closed elsewhere. Every payment was then
+    // refused ("cash register is closed") and the till hung. Follow the day the server has open,
+    // or ask to open one when there is none.
+    useEffect(() => {
+        if (type === 'customer' || !openingCash?.id) return;
+        let cancelled = false;
+        axios.get('pos/cash-register').then(({ data }) => {
+            if (cancelled || !data?.status) return;
+            const open = data.register;
+            if (open && open.id === openingCash.id) return;
+            dispatch({ type: 'SET_CASH', payload: open ?? {} });
+            setOpeningAmount(open ?? {});
+            if (open) toast.success(`Continuing the day opened on ${open.date}.`);
+            else toast.error('The day is not open any more, open the day to continue.');
+        }).catch(() => {});
+        return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [type]);
+
     // Offers: today's offers (badges on the tiles) and what they take off the active cart.
     const cartItems = useMemo(() => cartProducts?.[activeSession] ?? [], [cartProducts, activeSession]);
     const { discounts } = useOfferDiscounts(type === 'customer' ? [] : cartItems);

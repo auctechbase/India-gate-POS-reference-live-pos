@@ -45,6 +45,18 @@ router.post('/session', async (req, res) => {
     }
 });
 
+// The day that is really open (null when none). The till keeps its open day in the browser,
+// which goes stale when the database is replaced (shop data import, a new install's starting
+// data) or the day is closed elsewhere; every payment was then refused and the till hung.
+router.get('/cash-register', fetchuser, async (req, res) => {
+    try {
+        const register = await CashRegister.query().where('status', true).orderBy('id', 'desc').first();
+        return res.json({ status: true, register: register ?? null });
+    } catch (error) {
+        return res.json({ status: false, message: error.message });
+    }
+});
+
 router.post('/opening-day-cash-amount', fetchuser.optional, async (req, res) => {
     try {
         const cash = String(req.body.cash ?? '');

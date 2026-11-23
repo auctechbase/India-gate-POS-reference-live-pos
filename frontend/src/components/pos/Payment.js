@@ -9,6 +9,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useSearch } from '../../contexts/SearchContext';
 import { TaxTable } from '../layouts/Navbar';
 import './PayPad.css';
+import { showChangeCard } from './ChangeCard';
 import '../offers/Offers.css';
 import { useOfferDiscounts, lineDiscount, lineOfferNames, cartDiscount, paidContent, sendToDisplay } from '../../helpers/offers';
 
@@ -277,23 +278,39 @@ export default function Payment()
             sessionData.offers = discounts.offers; // [{ id, name, sets, discount }]
         }
 
-        const {data} = await axios.post(`orders/create`, {
-            session_id: active,
-            customer_id:'',
-            cash_register_id: openingCash.id,
-            cashForDrawer,
-            amount: total,
-            payment_mode: paymentMethod.toString(),
-            transaction_type:sale? 'credit':'debit', // debit in case of money & credit in case of stocks
-            modes: {...byAll, Cash: cashForDrawer, ogCash:byAll.Cash },
-            returns: RETURNS,
-            sessionData 
-        }, 
-            {headers}
-        );
+        let data;
+        try {
+            ({data} = await axios.post(`orders/create`, {
+                session_id: active,
+                customer_id:'',
+                cash_register_id: openingCash.id,
+                cashForDrawer,
+                amount: total,
+                payment_mode: paymentMethod.toString(),
+                transaction_type:sale? 'credit':'debit', // debit in case of money & credit in case of stocks
+                modes: {...byAll, Cash: cashForDrawer, ogCash:byAll.Cash },
+                returns: RETURNS,
+                sessionData
+            },
+                {headers}
+            ));
+        } catch (error) {
+            // Before, a refused or unanswered request left the button spinning for good (and no
+            // receipt): the error escaped and `processing` was never reset.
+            setProcess(false);
+            const reply = error.response?.data;
+            if (reply?.code === 'REGISTER_CLOSED') {
+                // The day this till remembers is not open on the server: open it again; the cart stays.
+                dispatch({ type: 'SET_CASH', payload: {} });
+                toast.error(reply.message);
+                return navigate('/pos');
+            }
+            return toast.error(reply?.message || 'The POS did not answer: the sale was NOT saved. Try again.');
+        }
 
         if(data.status) {
-            toast.success(sale? "Order completed!": "Return completed!");
+            // Read before the cart is cleared below.
+            const changeInfo = { total, paid: paid(), currency, isReturn: !sale };
             if(!sale) {
                 localStorage.setItem('_is_sale', 'true');
                 setType(true)
@@ -365,21 +382,9 @@ export default function Payment()
                 )
             }
             dispatch({ type: "STOP_LOADING" });
-            
-            
-            let alertHTML = returnPart()
-            toast((<div style={{
-                width:450,
-                background:"#fff",
-                borderRadius:'10px',
-                position:'absolute',
-                boxShadow:'0px 18px 40px 0px lightyellow',
-                right:10}}>
-                    <h2 style={{padding:'10px 30px',fontSize:"2.7rem",whiteSpace:'nowrap',fontWeight:900}}>{alertHTML}</h2>
-                </div>), {
-                duration:8000,
-                position:"top-right"
-            })
+
+            // The change to give back, shown big over the till for 6 s (tap to close).
+            showChangeCard(changeInfo);
             navigate(`/pos`);
         } else {
             toast.error("Failed to create the order!");

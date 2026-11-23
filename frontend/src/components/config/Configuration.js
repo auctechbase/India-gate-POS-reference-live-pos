@@ -9,6 +9,7 @@ import alert from '../../asset/images/alert.png';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { Modal, ModalHeader, ModalFooter, ModalBody, FormGroup, Form } from 'reactstrap';
+import PrinterSettings from './PrinterSettings';
 
 function Configuration() {
     const keyboardRef = useRef();
@@ -17,6 +18,7 @@ function Configuration() {
     const [ stockModal, setStockModal ] = useState(false);
     const [ minStock, setAlert ] = useState(stockAlert)
     const [ focused, setFocused ] = useState(false)
+    const [ printerModal, setPrinterModal ] = useState(false)
     const dispatch = useDispatch();
     const updateCurrency = () => {
         axios.get("https://api.apilayer.com/exchangerates_data/latest?symbols=EUR&base=INR", {
@@ -47,6 +49,7 @@ function Configuration() {
     
     
     const senty = {placeContent:'center'}
+    const tileCol = {width:'clamp(200px, 17vw, 340px)'}
     // presetting text
     const [ presetTxt, setPreset ] = useState(minStock)
     useEffect(() => {
@@ -59,8 +62,9 @@ function Configuration() {
         <div className="content-wrapper">
             <div className="d-grid mt-3" style={{placeItems: 'center'}}>
 
-                <div className="d-flex" style={{gap:'20px',marginTop:'10%',marginLeft:'-20%'}}>
-                    <div className="text-center col-4">
+                {/* Five tiles: sized to fit one row (the fixed col-4 widths only had room for four). */}
+                <div className="d-flex" style={{gap:'20px',marginTop:'10%',flexWrap:'wrap',justifyContent:'center',width:'100%'}}>
+                    <div className="text-center" style={tileCol}>
                         <Link className="card redirect tablink showCat" to={`/config/categories`} title={"Categories"}>
                             <div className="card-body">
                                 {theme==='default' ? 
@@ -74,7 +78,7 @@ function Configuration() {
                         </Link>
                         {theme==='default' && <h5 className="pt-3 fs-2">Category</h5>}
                     </div>
-                    <div className="text-center col-4">
+                    <div className="text-center" style={tileCol}>
                         <Link className="card redirect tablink" to={`/config/taxes`} title={"Taxes"}>
                             <div className="card-body">
                                 {theme==='default' ? 
@@ -89,7 +93,7 @@ function Configuration() {
                         {theme==='default' && <h5 className="pt-3 fs-2"> Tax </h5>}
                     </div>
                    
-                    <div className="text-center col-4">
+                    <div className="text-center" style={tileCol}>
                         <div className="card redirect tablink" onClick={()=> setStockModal(!stockModal)} title={"Set stock alert"}>
                             <div className="card-body">
                             {theme==='default' ?
@@ -104,7 +108,7 @@ function Configuration() {
                         {theme==='default' && <h5 className="pt-3 fs-2"> Stock Alert </h5>}
                     </div>
                     
-                    <div className="text-center col-4">
+                    <div className="text-center" style={tileCol}>
                         <Link className="card redirect tablink" to={`/notes`} title="Add payment notes">
                             <div className="card-body">
                                 {theme==='default' ? 
@@ -117,6 +121,21 @@ function Configuration() {
                             </div>
                         </Link>
                         {theme==='default' && <h5 className="pt-3 fs-2"> Add Notes </h5>}
+                    </div>
+
+                    <div className="text-center" style={tileCol}>
+                        <div className="card redirect tablink" onClick={()=> setPrinterModal(true)} title="Choose the printers">
+                            <div className="card-body">
+                            {theme==='default' ?
+                                <div className="d-flex" title="Choose the printers" style={senty}>
+                                    <div style={{width:'70px', textAlign:'center'}} >
+                                        <i className="mdi mdi-printer" style={{fontSize:'64px', lineHeight:'80px', color:'#1e283d'}} />
+                                    </div>
+                                </div>
+                            : <h1>Printers</h1>}
+                            </div>
+                        </div>
+                        {theme==='default' && <h5 className="pt-3 fs-2"> Printers </h5>}
                     </div>
                 </div>
             </div>
@@ -163,6 +182,8 @@ function Configuration() {
                 </ModalFooter>
             </Form>
         </Modal>
+
+        <PrinterSettings isOpen={printerModal} onClose={() => setPrinterModal(false)} />
 
         {focused && !hasKeyboard && <TouchKeyboard
                 open
