@@ -15,6 +15,7 @@ const fs = require('fs');
 const config = require('./backend/config');
 const websiteSync = require('./backend/utils/websiteSync');
 const { receiptHtml } = require('./backend/utils/webReceipt');
+const { setupAutoUpdates } = require('./autoUpdate');
 // The logo file name contains a build hash that changes with every UI update; look it up
 // instead of hard-coding it (the app used to crash on start after an update).
 const logoPath = config.findLogoPath();
@@ -67,6 +68,9 @@ app.on('ready', async () =>
         windows = [];
     });
 
+
+    // Check for a newer version and keep the till up to date on its own (installed app only).
+    setupAutoUpdates(() => mainWindow);
 
     openCustomerDisplay();
     // The customer screen is often switched on after the POS: before, it then stayed empty until

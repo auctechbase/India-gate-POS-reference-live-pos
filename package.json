@@ -52,6 +52,13 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "auctechbase",
+        "repo": "india-gate-pos-download"
+      }
+    ],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -78,6 +85,7 @@
     "electron-builder": "^25.1.8"
   },
   "dependencies": {
-    "bwip-js": "^4.5.1"
+    "bwip-js": "^4.5.1",
+    "electron-updater": "^6.8.11"
   }
 }

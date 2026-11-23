@@ -79,11 +79,17 @@ jobs:
         run: npm run dist:win
 
       # First, so the installer can be downloaded from the run even if publishing fails.
+      # latest.yml and the .blockmap go with it: the app's auto-updater (electron-updater) needs
+      # latest.yml to spot a new version, so every release must carry all three files, including
+      # when a release is published by hand from this artifact.
       - name: Keep a copy as a build artifact
         uses: actions/upload-artifact@v4
         with:
           name: India-Gate-POS-Setup-${{ steps.version.outputs.version }}
-          path: dist/India-Gate-POS-Setup.exe
+          path: |
+            dist/India-Gate-POS-Setup.exe
+            dist/India-Gate-POS-Setup.exe.blockmap
+            dist/latest.yml
 
       # Clean up the variable (a pasted value can end in a space, line break or "."), then check
       # the token can see that repo, so a mistake gives a clear message instead of "404".
@@ -112,7 +118,10 @@ jobs:
           token: ${{ secrets.RELEASES_TOKEN }}
           tag_name: v${{ steps.version.outputs.version }}
           name: India Gate POS ${{ steps.version.outputs.version }}
-          files: dist/India-Gate-POS-Setup.exe
+          files: |
+            dist/India-Gate-POS-Setup.exe
+            dist/India-Gate-POS-Setup.exe.blockmap
+            dist/latest.yml
           make_latest: true
 
       - name: Attach to a release in this repo
@@ -121,6 +130,9 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: India Gate POS ${{ steps.version.outputs.version }}
-          files: dist/India-Gate-POS-Setup.exe
+          files: |
+            dist/India-Gate-POS-Setup.exe
+            dist/India-Gate-POS-Setup.exe.blockmap
+            dist/latest.yml
           make_latest: true
 
