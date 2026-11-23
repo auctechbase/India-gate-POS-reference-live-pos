@@ -1,0 +1,19 @@
+/* Short till screens (e.g. 1280 x 720): the cart (48vh) + Payment row + four rows of 60 px keys
+   did not fit, so the bottom row ( . | 0 | Reset | Edit Price ) fell off the screen and weights
+   like 0.5 kg could not be typed. Here the cart takes what is left and the keys are a bit lower,
+   so every key stays on screen. Taller screens are unchanged. */
+@media (max-height: 860px) {
+    .put-here.action-visible {
+        height: calc(100vh - 440px) !important;
+        min-height: 170px;
+    }
+    .actionBar .btn.num {
+        min-height: 50px !important;
+    }
+    .actionBar > .row.mt-1 {
+        margin-top: 3px !important;
+    }
+    .actionBar.mt-3 {
+        margin-top: 0.6rem !important;
+    }
+}

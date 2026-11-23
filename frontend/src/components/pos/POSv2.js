@@ -15,6 +15,7 @@ import logo from '../../asset/images/logo.png'
 import { Button } from '../layouts/Navbar';
 import { useOfferDiscounts, useActiveOffers, offerBadges, lineDiscount, lineOfferNames, cartDiscount, displayContent, sendToDisplay } from '../../helpers/offers';
 import '../offers/Offers.css';
+import './TillLayout.css';
 let noCodeProducts=[]
 function POS() {
     const cRef = useRef(null);
