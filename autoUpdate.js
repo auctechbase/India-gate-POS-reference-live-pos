@@ -40,6 +40,10 @@ function setupAutoUpdates(getMainWindow) {
 
     autoUpdater.autoDownload = true; // fetch a new version as soon as one is found
     autoUpdater.autoInstallOnAppQuit = true; // install it silently when the till is closed
+    // Download the whole installer. The "changed blocks only" download hung at 85% on
+    // 2026-11-27 (1.0.14 → 1.0.15) and never finished or failed; a full download is ~140 MB.
+    autoUpdater.disableDifferentialDownload = true;
+    autoUpdater.disableWebInstaller = true;
     autoUpdater.logger = {
         info: (m) => log.info('update', String(m)),
         warn: (m) => log.warn('update', String(m)),
@@ -55,6 +59,8 @@ function setupAutoUpdates(getMainWindow) {
     });
     autoUpdater.on('update-available', (info) => {
         log.info('update', `New version ${info.version} found; downloading`);
+        lastProgress = Date.now();
+        lastLoggedPercent = -1;
         send({ state: 'downloading', version: info.version, percent: 0 });
     });
     autoUpdater.on('update-not-available', () => {
@@ -66,10 +72,27 @@ function setupAutoUpdates(getMainWindow) {
         log.error('update', 'Update check failed', { error: message });
         if (status.state !== 'ready') send({ state: 'error', error: message.split('\n')[0].slice(0, 200) });
     });
+    // A download that stops moving: show it (instead of "Downloading…" forever) and let the
+    // next check try again.
+    let lastProgress = 0;
+    let lastLoggedPercent = -1;
     autoUpdater.on('download-progress', (p) => {
-        log.info('update', `Downloading update: ${Math.round(p.percent)}%`);
-        send({ state: 'downloading', percent: Math.round(p.percent) });
+        lastProgress = Date.now();
+        const percent = Math.round(p.percent);
+        if (percent >= lastLoggedPercent + 10 || percent === 100) {
+            lastLoggedPercent = percent;
+            log.info('update', `Downloading update: ${percent}%`);
+        }
+        send({ state: 'downloading', percent });
     });
+    setInterval(() => {
+        if (status.state === 'downloading' && lastProgress && Date.now() - lastProgress > 3 * 60 * 1000) {
+            log.warn('update', `Download of ${status.version} stalled at ${status.percent || 0}%; will try again`);
+            lastProgress = 0;
+            lastLoggedPercent = -1;
+            send({ state: 'error', error: 'The download stopped; trying again later' });
+        }
+    }, 30 * 1000);
     autoUpdater.on('update-downloaded', (info) => {
         log.info('update', `Version ${info.version} is ready; waiting for "Update now" or app close`);
         send({ state: 'ready', version: info.version });
