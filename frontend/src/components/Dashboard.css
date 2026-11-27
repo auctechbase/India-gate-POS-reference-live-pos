@@ -26,6 +26,56 @@
     word-break: break-word;
 }
 
+/* Update bar (UpdateBar.js) */
+/* In the flow above the tiles (not floating), so it never covers a tile */
+.update-bar {
+    width: fit-content;
+    margin: 16px auto 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px 10px 18px;
+    border-radius: 12px;
+    background: #fff;
+    color: #222;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+    font-size: 1.05rem;
+    max-width: calc(100% - 32px);
+}
+.update-bar .mdi {
+    font-size: 1.6rem;
+    color: #2b8a9e;
+}
+/* Leave room for the bar so the page doesn't start scrolling */
+.update-bar ~ .home-grid {
+    min-height: calc(82vh - 76px);
+}
+.update-bar-ready {
+    border: 2px solid #28a745;
+}
+.update-bar-ready .mdi {
+    color: #28a745;
+}
+.update-bar .btn {
+    font-size: 1.05rem;
+    padding: 8px 22px;
+    white-space: nowrap;
+}
+.update-version {
+    position: fixed;
+    bottom: 8px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #888;
+}
+.update-version .btn-link {
+    font-size: 0.85rem;
+    padding: 0 0 0 8px;
+    vertical-align: baseline;
+}
+
 /* Short laptop screens (e.g. 1280x600): smaller tiles so both rows and their labels fit */
 @media (max-height: 700px) and (min-width: 768px) {
     .home-tiles .col-md-3 {

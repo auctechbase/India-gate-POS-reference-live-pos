@@ -9,6 +9,7 @@ import offers from '../asset/images/offers-tile.svg';
 import website from '../asset/images/website-tile.svg';
 import {Link} from 'react-router-dom';
 import { useGetSettingsQuery } from '../features/centerSlice';
+import UpdateBar from './UpdateBar';
 import './Dashboard.css';
 
 // Same tiles and order as Sardar Ji's home: four on the first row, three on the second.
@@ -35,6 +36,7 @@ function Dashboard() {
 
     return (
         <div className="container">
+            <UpdateBar />
             <div className="d-grid home-grid">
                 <div className="d-flex w-100 home-tiles">
                     <div className="col-md-8">

@@ -1,22 +1,40 @@
 const { app, ipcMain, Notification } = require('electron');
 const log = require('./backend/utils/log');
 
-// Keeps each till up to date on its own, so no one has to visit a shop to run a new setup.
+// Keeps each till up to date, so no one has to visit a shop to run a new setup.
 // It checks the PUBLIC download repo (auctechbase/india-gate-pos-download, set in
-// package.json > build.publish) for a newer installer, downloads it in the background, and
-// installs it silently the next time the app is closed. The repo is public, so no token is
-// needed, and the installer is per-user (nsis.oneClick=false), so there is no admin prompt.
+// package.json > build.publish) for a newer installer and downloads it in the background.
+// The home screen then shows an "Update now" button (installs silently and reopens the POS);
+// if no one presses it, the update installs silently when the app is closed.
 //
 // One-time step: a device must get ONE manual install of a version that already contains this
 // file; from then on it updates itself.
+
+// What the home screen shows. state: idle | checking | downloading | ready | latest | error | off
+let status = { state: 'off', current: app.getVersion() };
+let lastCheck = 0;
+
 function setupAutoUpdates(getMainWindow) {
-    if (!app.isPackaged) return; // only the installed app updates; `npm start` never does
+    const send = (patch) => {
+        status = { ...status, ...patch, current: app.getVersion() };
+        try { getMainWindow()?.webContents?.send('update-status', status); } catch (e) { /* no window */ }
+    };
+
+    ipcMain.handle('get-update-status', () => status);
+
+    if (!app.isPackaged) { // only the installed app updates; `npm start` never does
+        ipcMain.handle('check-for-updates', () => status);
+        ipcMain.handle('install-update-now', () => ({ ready: false }));
+        return;
+    }
 
     let autoUpdater;
     try {
         ({ autoUpdater } = require('electron-updater'));
     } catch (error) {
         log.warn('update', 'electron-updater is not available; auto-update is off', { error: error.message });
+        ipcMain.handle('check-for-updates', () => status);
+        ipcMain.handle('install-update-now', () => ({ ready: false }));
         return;
     }
 
@@ -29,46 +47,79 @@ function setupAutoUpdates(getMainWindow) {
         debug: () => {},
     };
 
-    let downloadedVersion = null;
+    status = { state: 'idle', current: app.getVersion() };
 
-    autoUpdater.on('checking-for-update', () => log.info('update', 'Checking for a new version'));
-    autoUpdater.on('update-available', (info) => log.info('update', `New version ${info.version} found; downloading`));
-    autoUpdater.on('update-not-available', () => log.info('update', 'Already on the newest version'));
-    autoUpdater.on('error', (err) => log.error('update', 'Update check failed', { error: String((err && err.message) || err) }));
-    autoUpdater.on('download-progress', (p) => log.info('update', `Downloading update: ${Math.round(p.percent)}%`));
+    autoUpdater.on('checking-for-update', () => {
+        log.info('update', 'Checking for a new version');
+        if (status.state !== 'ready' && status.state !== 'downloading') send({ state: 'checking' });
+    });
+    autoUpdater.on('update-available', (info) => {
+        log.info('update', `New version ${info.version} found; downloading`);
+        send({ state: 'downloading', version: info.version, percent: 0 });
+    });
+    autoUpdater.on('update-not-available', () => {
+        log.info('update', 'Already on the newest version');
+        if (status.state !== 'ready') send({ state: 'latest' });
+    });
+    autoUpdater.on('error', (err) => {
+        const message = String((err && err.message) || err);
+        log.error('update', 'Update check failed', { error: message });
+        if (status.state !== 'ready') send({ state: 'error', error: message.split('\n')[0].slice(0, 200) });
+    });
+    autoUpdater.on('download-progress', (p) => {
+        log.info('update', `Downloading update: ${Math.round(p.percent)}%`);
+        send({ state: 'downloading', percent: Math.round(p.percent) });
+    });
     autoUpdater.on('update-downloaded', (info) => {
-        downloadedVersion = info.version;
-        log.info('update', `Version ${info.version} is ready; it will install when the app is closed`);
-        notifyReady(info.version, autoUpdater);
-        try { getMainWindow()?.webContents?.send('update-ready', { version: info.version }); } catch (e) { /* no window */ }
+        log.info('update', `Version ${info.version} is ready; waiting for "Update now" or app close`);
+        send({ state: 'ready', version: info.version });
+        notifyReady(info.version, install);
     });
 
-    const check = () =>
-        autoUpdater.checkForUpdates().catch((err) => log.error('update', 'Could not check for updates', { error: String((err && err.message) || err) }));
+    const check = () => {
+        if (status.state === 'ready' || status.state === 'downloading') return Promise.resolve();
+        lastCheck = Date.now();
+        return autoUpdater.checkForUpdates().catch((err) => {
+            const message = String((err && err.message) || err);
+            log.error('update', 'Could not check for updates', { error: message });
+            send({ state: 'error', error: message.split('\n')[0].slice(0, 200) });
+        });
+    };
 
-    // Check a little after start (let the POS finish loading), then every 3 hours.
+    // Silent install, then the POS opens again by itself (no installer screens).
+    function install() {
+        if (status.state !== 'ready') return false;
+        log.info('update', `Installing version ${status.version} now (Update now pressed)`);
+        setImmediate(() => autoUpdater.quitAndInstall(true, true));
+        return true;
+    }
+
+    // Check a little after start (let the POS finish loading), then every hour.
     setTimeout(check, 20 * 1000);
-    setInterval(check, 3 * 60 * 60 * 1000);
+    setInterval(check, 60 * 60 * 1000);
 
-    // Optional buttons in the UI can call these; without them, the install still happens on quit.
-    ipcMain.handle('check-for-updates', () => check());
+    // "Check for updates" on the home screen. `quiet` = the home screen opening: at most once
+    // every 10 minutes, so walking through the screens doesn't keep asking GitHub.
+    ipcMain.handle('check-for-updates', async (evt, quiet) => {
+        if (!(quiet && Date.now() - lastCheck < 10 * 60 * 1000)) await check();
+        return status;
+    });
     ipcMain.handle('install-update-now', () => {
-        if (!downloadedVersion) return { ready: false };
-        setImmediate(() => autoUpdater.quitAndInstall());
-        return { ready: true, version: downloadedVersion };
+        const ready = install();
+        return { ready, version: status.version };
     });
 }
 
-// A quiet Windows notification; clicking it updates right away instead of waiting for closing time.
-function notifyReady(version, autoUpdater) {
+// A quiet Windows notification; clicking it updates right away.
+function notifyReady(version, install) {
     try {
         if (!Notification.isSupported()) return;
         const note = new Notification({
             title: 'India Gate POS update ready',
-            body: `Version ${version} will install when you close the app. Click here to update now.`,
+            body: `Version ${version} is ready. Click here, or "Update now" on the home screen.`,
             silent: true,
         });
-        note.on('click', () => autoUpdater.quitAndInstall());
+        note.on('click', install);
         note.show();
     } catch (error) {
         log.warn('update', 'Could not show the update notification', { error: error.message });
