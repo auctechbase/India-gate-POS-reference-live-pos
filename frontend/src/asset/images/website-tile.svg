@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- browser window, shaded on the right like the old flat tiles -->
+  <rect x="24" y="64" width="464" height="352" rx="24" fill="#e9e9ec"/>
+  <path d="M424 64 H464 Q488 64 488 88 V392 Q488 416 464 416 H424 Z" fill="#bebec4"/>
+  <path d="M48 64 H464 Q488 64 488 88 V136 H24 V88 Q24 64 48 64 Z" fill="#00c3c9"/>
+  <path d="M424 64 H464 Q488 64 488 88 V136 H424 Z" fill="#13b1bf"/>
+  <circle cx="68" cy="100" r="13" fill="#e60f2b"/>
+  <circle cx="108" cy="100" r="13" fill="#fdc54e"/>
+  <circle cx="148" cy="100" r="13" fill="#fff"/>
+  <rect x="184" y="86" width="208" height="28" rx="14" fill="#fff" opacity="0.85"/>
+  <!-- shopping bag -->
+  <path d="M206 236 V206 A50 50 0 0 1 306 206 V236" fill="none" stroke="#34495e" stroke-width="16" stroke-linecap="round"/>
+  <path d="M160 222 H352 L370 376 Q372 396 352 396 H160 Q140 396 142 376 Z" fill="#ff5a2c"/>
+  <path d="M300 222 H352 L370 376 Q372 396 352 396 H300 Z" fill="#e8481e"/>
+  <circle cx="206" cy="262" r="10" fill="#fff"/>
+  <circle cx="306" cy="262" r="10" fill="#fff"/>
+  <path d="M212 318 L244 350 L304 290" fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- counter -->
+  <rect x="0" y="436" width="512" height="44" rx="14" fill="#8a8796"/>
+  <path d="M456 436 H498 Q512 436 512 450 V466 Q512 480 498 480 H456 Z" fill="#726f80"/>
+</svg>

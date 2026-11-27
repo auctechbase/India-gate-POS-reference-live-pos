@@ -1,0 +1,49 @@
+/* Home tiles, laid out like Sardar Ji's POS: four on the first row, three on the second
+   (col-md-3 inside col-md-8). The theme's .card.redirect gives the card look. */
+.home-grid {
+    place-items: center;
+    min-height: 82vh;
+}
+.home-tiles {
+    justify-self: center;
+    place-content: center;
+}
+.home-tiles .col-md-3 {
+    padding: 2%;
+}
+.home-tiles a {
+    text-decoration: none;
+}
+.home-tile-image {
+    width: 100%;
+    text-align: center;
+    min-height: 170px;
+    place-content: center;
+}
+.home-tile-image h1 {
+    font-family: system-ui;
+    font-size: 2rem;
+    word-break: break-word;
+}
+
+/* Short laptop screens (e.g. 1280x600): smaller tiles so both rows and their labels fit */
+@media (max-height: 700px) and (min-width: 768px) {
+    .home-tiles .col-md-3 {
+        padding: 1% 2%;
+    }
+    .home-tiles .card-body {
+        padding: 12px;
+    }
+    .home-tile-image {
+        min-height: 0;
+    }
+    .home-tile-image img {
+        width: auto !important;
+        max-width: 100%;
+        height: 150px;
+        object-fit: contain;
+    }
+    .home-tiles h5 {
+        padding-top: 0.5rem !important;
+    }
+}

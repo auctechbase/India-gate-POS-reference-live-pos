@@ -1,13 +1,14 @@
 {
   "files": {
     "main.css": "/static/css/main.eb51913b.css",
-    "main.js": "/static/js/main.15423e1d.js",
+    "main.js": "/static/js/main.72f783d7.js",
     "static/css/512.99114fc4.chunk.css": "/static/css/512.99114fc4.chunk.css",
     "static/js/512.bc985ab5.chunk.js": "/static/js/512.bc985ab5.chunk.js",
     "static/css/774.a11a47b8.chunk.css": "/static/css/774.a11a47b8.chunk.css",
     "static/js/774.ef528c5a.chunk.js": "/static/js/774.ef528c5a.chunk.js",
     "static/js/444.046c96a9.chunk.js": "/static/js/444.046c96a9.chunk.js",
-    "static/js/813.ac72d0de.chunk.js": "/static/js/813.ac72d0de.chunk.js",
+    "static/css/867.7fc360fc.chunk.css": "/static/css/867.7fc360fc.chunk.css",
+    "static/js/867.1933ce79.chunk.js": "/static/js/867.1933ce79.chunk.js",
     "static/css/420.9b8b7e1e.chunk.css": "/static/css/420.9b8b7e1e.chunk.css",
     "static/js/420.6461098e.chunk.js": "/static/js/420.6461098e.chunk.js",
     "static/css/840.227bd1be.chunk.css": "/static/css/840.227bd1be.chunk.css",
@@ -68,10 +69,12 @@
     "static/media/notes.webp": "/static/media/notes.5ed959a3d0e82cc64f84.webp",
     "static/media/sales.webp": "/static/media/sales.360d1d025a18218edcc0.webp",
     "static/media/fa-v4compatibility.woff2": "/static/media/fa-v4compatibility.68577e40f3e70067b5da.woff2",
-    "index.html": "/index.html"
+    "static/media/website-tile.svg": "/static/media/website-tile.48525fa635e6b6b170314b54ac422202.svg",
+    "index.html": "/index.html",
+    "static/media/offers-tile.svg": "/static/media/offers-tile.3dfda2271fa49928f241d451f1cd7795.svg"
   },
   "entrypoints": [
     "static/css/main.eb51913b.css",
-    "static/js/main.15423e1d.js"
+    "static/js/main.72f783d7.js"
   ]
 }

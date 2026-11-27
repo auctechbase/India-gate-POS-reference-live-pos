@@ -5,19 +5,26 @@ import store from '../asset/images/store.png';
 import cart from '../asset/images/cart.webp';
 import config from '../asset/images/config.png';
 import sales from '../asset/images/sales.webp';
+import offers from '../asset/images/offers-tile.svg';
+import website from '../asset/images/website-tile.svg';
 import {Link} from 'react-router-dom';
 import { useGetSettingsQuery } from '../features/centerSlice';
+import './Dashboard.css';
+
+// Same tiles and order as Sardar Ji's home: four on the first row, three on the second.
+const TILES = [
+    { to: '/pos', label: 'Point of sale', retro: 'POS', image: store },
+    { to: '/inventory', label: 'Inventory', retro: 'INVENTORY', image: inventory },
+    { to: '/products', label: 'Products', retro: 'PRODUCTS', image: cart },
+    { to: '/configuration', label: 'Configuration', retro: 'CONFIG', image: config },
+    { to: '/sales', label: 'Sales', retro: 'SALES', image: sales },
+    { to: '/offers', label: 'Offers', retro: 'OFFERS', image: offers },
+    { to: '/website', label: 'Website', retro: 'WEBSITE', image: website },
+];
 
 function Dashboard() {
     const dispatch = useDispatch()
     const { theme } = useSelector( s => s.auth);
-    const padding = {padding:'2%'};
-    const card = {width:'100%',textAlign:'center', minHeight:170, placeContent:'center'}
-    const websiteIcon = {
-        width:'100%', aspectRatio:'1', display:'grid', placeItems:'center', borderRadius:'50%',
-        background:'linear-gradient(135deg,#2b8a9e,#1b4f72)', color:'#fff', fontSize:'5.5rem', lineHeight:1,
-    }
-    const offersIcon = { ...websiteIcon, background:'linear-gradient(135deg,#c9a24a,#8a6420)' }
     const {data, isSuccess } = useGetSettingsQuery();
 
     useEffect(()=>{
@@ -27,142 +34,32 @@ function Dashboard() {
     },[data, data?.settings, isSuccess]);
 
     return (
-    <>
         <div className="container">
-            <div className="d-grid" style={{placeItems:'center',height:'82vh'}}>
-                <div className="d-flex w-100 " style={{justifySelf:'center', placeContent:'center'}}>
-                    <div className="col-md-6">
+            <div className="d-grid home-grid">
+                <div className="d-flex w-100 home-tiles">
+                    <div className="col-md-8">
                         <div className="row justify-content-center">
-                            <div className="col-md-4 text-center" style={padding}>
-                                <Link to={`/pos`} style={{textDecoration:'none'}}>
-                                    <div className="card redirect" data-toggle="tooltip" data-placement="bottom" title="Point of sale">
-                                    <div className="card-body">
-                                        <div style={card}>
-                                        {   
-                                            theme==='retro' ? 
-                                                <h1 style={{fontFamily:'system-ui'}}>POS</h1> : 
-                                            <img src={store} className="w-100" alt=''/>
-                                        }
-                                        </div>
-                                    </div>
-                                    </div>
-                                </Link>
-                            { theme === 'default' && <h5 className="pt-3">Point of sale</h5> }
-                            </div>
-                            <div className="col-md-4 text-center" style={{...padding, width:theme==='retro' &&'66%'}}>
-                                <Link to={`/inventory`} style={{textDecoration:'none'}}>
-                                    <div className="card redirect" data-toggle="tooltip" data-placement="bottom" title="Inventory">
-                                        <div className="card-body">
-                                            <div className="d-flex">
-                                                <div style={card}>
-                                                    {
-                                                        theme==='retro' ? 
-                                                            <h1 style={{fontFamily:'system-ui'}}>INVENTORY</h1> : 
-                                                        <img src={inventory} className="w-100" alt='' />
-                                                    }
+                            {TILES.map(tile => (
+                                <div key={tile.to} className="col-md-3 text-center">
+                                    <Link to={tile.to}>
+                                        <div className="card redirect" title={tile.label}>
+                                            <div className="card-body">
+                                                <div className="home-tile-image">
+                                                    {theme === 'retro'
+                                                        ? <h1>{tile.retro}</h1>
+                                                        : <img src={tile.image} className="w-100" alt='' />}
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </Link>
-                                { theme==='default' && <h5 className="pt-3">Inventory</h5> }
-                            </div>
-                            <div className="col-md-4 text-center" style={{...padding, width:theme==='retro' &&'33%'}}>
-                                <Link to={`/products`} style={{textDecoration:'none'}}>
-                                    <div className="card redirect" data-toggle="tooltip" data-placement="bottom" title="Products">
-                                        <div className="card-body">
-                                            <div className="d-flex">
-                                                <div style={card}>
-                                                    {
-                                                        theme==='retro' ? 
-                                                            <h1 style={{fontSize:'2.2rem',fontFamily:'system-ui'}}>PRODUCTS</h1> : 
-                                                        <img src={cart} className="w-100" alt='' />
-                                                    }
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Link>
-                                { theme === 'default' && <h5 className="pt-3"> Products </h5> }
-                            </div>
-                            <div className="col-md-4 text-center" style={padding}>
-                                <Link to={`/configuration`} style={{textDecoration:'none'}}>
-                                <div className="card redirect" data-toggle="tooltip" data-placement="bottom" title="Configuration">
-                                    <div className="card-body">
-                                    <div className="d-flex">
-                                        <div style={card}>
-                                            {
-                                                theme==='retro' ? 
-                                                    <h1 style={{fontSize:'2.6rem',fontFamily:'system-ui'}}>CONFIG</h1> : 
-                                                <img src={config} className="w-100" alt=''/>
-                                            }
-                                        </div>
-                                    </div>
-                                    </div>
+                                    </Link>
+                                    {theme !== 'retro' && <h5 className="pt-3">{tile.label}</h5>}
                                 </div>
-                                </Link>
-                                { theme==='default' && <h5 className="pt-3">Configuration</h5> }
-                            </div>
-                            <div className="col-md-4 text-center" style={padding}>
-                                <Link to={`/sales`} style={{textDecoration:'none'}}>
-                                <div className="card redirect" data-toggle="tooltip" data-placement="bottom" title="Sales">
-                                    <div className="card-body">
-                                    <div className="d-flex">
-                                        <div style={card}>
-                                            {
-                                                theme==='retro' ? 
-                                                    <h1 style={{fontSize:'2.6rem',fontFamily:'system-ui'}}>SALES</h1> : 
-                                                <img src={sales} className="w-100" alt=''/>
-                                            }
-                                        </div>
-                                    </div>
-                                    </div>
-                                </div>
-                                </Link>
-                                { theme==='default' && <h5 className="pt-3">Sales</h5> }
-                            </div>
-                            <div className="col-md-4 text-center" style={padding}>
-                                <Link to={`/website`} style={{textDecoration:'none'}}>
-                                <div className="card redirect" data-toggle="tooltip" data-placement="bottom" title="Website orders">
-                                    <div className="card-body">
-                                    <div className="d-flex">
-                                        <div style={card}>
-                                            {
-                                                theme==='retro' ? 
-                                                    <h1 style={{fontSize:'2.4rem',fontFamily:'system-ui'}}>WEBSITE</h1> : 
-                                                <div style={websiteIcon}><i className="mdi mdi-web" /></div>
-                                            }
-                                        </div>
-                                    </div>
-                                    </div>
-                                </div>
-                                </Link>
-                                { theme==='default' && <h5 className="pt-3">Website</h5> }
-                            </div>
-                            <div className="col-md-4 text-center" style={padding}>
-                                <Link to={`/offers`} style={{textDecoration:'none'}}>
-                                <div className="card redirect" data-toggle="tooltip" data-placement="bottom" title="Offers">
-                                    <div className="card-body">
-                                    <div className="d-flex">
-                                        <div style={card}>
-                                            {
-                                                theme==='retro' ?
-                                                    <h1 style={{fontSize:'2.4rem',fontFamily:'system-ui'}}>OFFERS</h1> :
-                                                <div style={offersIcon}><i className="mdi mdi-tag-multiple" /></div>
-                                            }
-                                        </div>
-                                    </div>
-                                    </div>
-                                </div>
-                                </Link>
-                                { theme==='default' && <h5 className="pt-3">Offers</h5> }
-                            </div>
+                            ))}
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </>
     )
 }
 
