@@ -1,0 +1,55 @@
+/* Receipt lookup (ReceiptLookup.js): scanned receipt barcode → when it was bought */
+.receipt-lookup .modal-header {
+    font-size: 1.25rem;
+}
+.receipt-lookup .rl-when {
+    text-align: center;
+    padding: 8px 0 16px;
+    border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 12px;
+}
+.receipt-lookup .rl-ago {
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.receipt-lookup .rl-date {
+    font-size: 1.2rem;
+    color: #444;
+}
+.receipt-lookup .rl-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    justify-content: center;
+    margin-bottom: 12px;
+    font-size: 1.05rem;
+}
+.receipt-lookup .rl-lines {
+    font-size: 1.05rem;
+}
+.receipt-lookup .rl-lines td,
+.receipt-lookup .rl-lines th {
+    padding: 6px 8px;
+}
+.receipt-lookup .rl-lines tr.is-return td {
+    color: #b3261e;
+}
+.receipt-lookup .rl-tag {
+    margin-left: 8px;
+    font-size: 0.8rem;
+    font-style: normal;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: #fde8e7;
+    color: #b3261e;
+}
+.receipt-lookup .rl-muted {
+    color: #777;
+    margin: 4px 0 0;
+}
+.receipt-lookup .rl-error {
+    color: #b3261e;
+    font-size: 1.1rem;
+    margin: 0;
+}

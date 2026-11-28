@@ -11,6 +11,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter, Row, Label, Input, FormGrou
 import toast from 'react-hot-toast';
 import Category from './Category';
 import Products from './Products';
+import ReceiptLookup, { isReceiptCode } from './ReceiptLookup';
 import logo from '../../asset/images/logo.png'
 import { Button } from '../layouts/Navbar';
 import { useOfferDiscounts, useActiveOffers, offerBadges, lineDiscount, lineOfferNames, cartDiscount, displayContent, sendToDisplay } from '../../helpers/offers';
@@ -55,6 +56,7 @@ function POS() {
     const [ otherOpen, setModal ] = useState(false)
     const [ availableStocks, setAvailableStocks ] = useState(cartStocks);
     const [ barcode, setBarcode ] = useState('');
+    const [ receiptCode, setReceiptCode ] = useState(null); // a scanned receipt: show when it was bought
     const [ number, setNumber ] = useState('');
     const [ qty, setQty ] = useState('');
     const [ editing, setEditing ] = useState(false);
@@ -332,6 +334,13 @@ function POS() {
     };
 
     useEffect(()=> {
+        // The barcode at the bottom of a receipt ("R" + order number): look the sale up instead of
+        // a product. Returns themselves are rung up as before.
+        if(barcode && isReceiptCode(barcode)) {
+            setReceiptCode(barcode.trim().toUpperCase());
+            setBarcode('');
+            return;
+        }
         if(barcode) {
             axios.get(`products/barcode/${barcode}`).then(({data})=> {
                 if(!data.status) {
@@ -1057,6 +1066,7 @@ function POS() {
                 label={{ name: 'Product name', price: 'Price', stock: 'Stock', barcode: 'Barcode', vStock: 'Weight', vPrice: 'Price' }[focusedCustom] ?? focusedCustom}
                 onClose={() => setFocusedCustom('')}
             />}
+            <ReceiptLookup code={receiptCode} onClose={() => setReceiptCode(null)} />
         </>
     )
 }

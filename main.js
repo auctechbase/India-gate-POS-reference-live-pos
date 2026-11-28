@@ -409,6 +409,25 @@ ipcMain.handle('get-printers', async (event) => {
     }
 })
 
+// The barcode at the bottom of a till receipt: "R" + the order number. Scanning it in the till
+// shows when the sale was made (ReceiptLookup.js), for returns. Fixed size in mm: the receipt body
+// is narrower than the paper and its content overflows it.
+function receiptBarcode(order) {
+    const id = Number(order && order.id);
+    if (!Number.isInteger(id) || id <= 0) return '';
+    try {
+        const svg = bwipjs.toSVG({ bcid: 'code128', text: `R${id}`, scale: 2, height: 10, includetext: false });
+        const src = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+        return `<div style="width:56mm;margin:8px 0 2px 6mm;text-align:center">
+            <img src="${src}" alt="" style="width:56mm;height:13mm;display:block"/>
+            <div style="letter-spacing:2px">R${id}</div>
+        </div>`;
+    } catch (error) {
+        console.error('Could not make the receipt barcode:', error.message);
+        return '';
+    }
+}
+
 // Prints a receipt body on the receipt printer with the shop logo on top. Used by the UI
 // (print-content) and for new website orders.
 function printReceipt(content, what = 'Receipt') {
@@ -437,6 +456,7 @@ function printReceipt(content, what = 'Receipt') {
             </div>
             ${content.html}
             <p>Generated: ${new Date().toLocaleString()}</p>
+            ${receiptBarcode(content.raw && content.raw.order)}
         </div>
     </body></html>`;
     printHtml('receipt', html, { silent: true }, what);

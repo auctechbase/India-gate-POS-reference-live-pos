@@ -85,6 +85,7 @@ router.post('/create', fetchuser, async (req, res) => {
         }
 
         // Everything below is saved together or not at all.
+        let saved = null; // the new order: its number goes on the receipt as a barcode
         const notifications = await Order.transaction(async (trx) => {
             const order = await Order.query(trx).insert({
                 session_id: body.session_id,
@@ -95,6 +96,7 @@ router.post('/create', fetchuser, async (req, res) => {
                 created_at: new Date().toISOString(),
                 cash_register_id: body.cash_register_id,
             });
+            saved = { id: order.id, created_at: order.created_at };
 
             const isSplit = String(body.payment_mode || '').indexOf(',') !== -1;
             await CashierSession.query(trx).insert({
@@ -134,7 +136,7 @@ router.post('/create', fetchuser, async (req, res) => {
         });
 
         log.info('payment', `Sale saved: ${body.amount} by ${body.payment_mode || '?'} (register ${body.cash_register_id}, cart ${body.session_id})`);
-        return res.status(200).json({ status: true, message: 'Transaction completed!', html: body.receiptData, notifications });
+        return res.status(200).json({ status: true, message: 'Transaction completed!', html: body.receiptData, notifications, order: saved });
     } catch (error) {
         console.error('Transaction error:', error);
         res.status(500).json({ status: false, message: 'An error occurred', error: error.message });
@@ -168,6 +170,56 @@ router.get('/view-order/:id', fetchuser.optional, async (req, res) => {
     } catch (e) {
         console.log(e.message);
         return res.json(emptyOrder(e.message));
+    }
+});
+
+// A scanned receipt barcode ("R" + order number, printed at the bottom of every receipt): when
+// the sale was made and what was in it, so the cashier can judge a return. Information only: the
+// return itself is still rung up in the till as before.
+router.get('/receipt/:code', fetchuser, async (req, res) => {
+    try {
+        const match = /^R?0*(\d{1,9})$/i.exec(String(req.params.code).trim());
+        if (!match) return res.json({ status: false, message: 'This is not a receipt barcode.' });
+        const order = await Order.query().findById(Number(match[1])).withGraphFetched('cashier(selectName)')
+            .modifiers({ selectName: b => b.select('id', 'name') });
+        if (!order) return res.json({ status: false, message: `Receipt R${match[1]} is not in this POS.` });
+
+        const session = await CashierSession.query().where('order_id', order.id).first().select('data');
+        const data = session ? parseData(session.data) : {};
+        const ids = Array.isArray(data.products) ? data.products : Object.keys(data.quantity || {});
+        const productIds = ids.filter(id => !isQuickItem(id));
+        const products = productIds.length ? await Product.query().whereIn('id', productIds).select('id', 'name', 'code') : [];
+        const byId = Object.fromEntries(products.map(p => [String(p.id), p]));
+        const lines = ids.map((id) => {
+            const amount = toNumber(data.price?.[id]); // the line total; negative = returned item
+            const product = byId[String(id)];
+            return {
+                name: product ? product.name : (isQuickItem(id) ? 'Other item' : `Product ${id}`),
+                code: product?.code || null,
+                quantity: toNumber(data.quantity?.[id]),
+                unit: data.unit?.[id] || null,
+                amount: round2(Math.abs(amount)),
+                isReturn: amount < 0,
+            };
+        });
+        return res.json({
+            status: true,
+            receipt: {
+                number: `R${order.id}`,
+                id: order.id,
+                date: order.created_at,
+                amount: toNumber(order.amount),
+                payment: order.payment_mode,
+                isReturn: order.transaction_type === 'debit' || toNumber(order.amount) < 0,
+                cashier: order.cashier?.name || null,
+                lines,
+                discount: toNumber(data.discount) || 0,
+            },
+            currency: await activeCurrencySymbol(),
+        });
+    } catch (error) {
+        console.error('Receipt lookup failed:', error);
+        return res.json({ status: false, message: error.message });
     }
 });
 
