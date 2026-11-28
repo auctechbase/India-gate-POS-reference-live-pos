@@ -1,5 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+const config = require('../config');
+
+// Files live in config.tmpDir: %APPDATA%/India Gate POS/files in the installed app (served at
+// /images). Before, they went into the program folder (backend/tmp), which isn't writable under
+// Program Files and is inside app.asar, so Z-report PDF copies could not be saved.
 
 const storage = {
   /**
@@ -10,7 +15,7 @@ const storage = {
    */
   async put(filePath, content) {
     try {
-      const fullPath = path.join(__dirname, '../tmp', filePath); // Save inside a "storage" folder
+      const fullPath = path.join(config.tmpDir, filePath);
       // Ensure the directory exists
       await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
       // Write the file
@@ -28,7 +33,7 @@ const storage = {
    */
   async get(filePath) {
     try {
-      const fullPath = path.join(__dirname, '../tmp', filePath);
+      const fullPath = path.join(config.tmpDir, filePath);
       return await fs.promises.readFile(fullPath);
     } catch (err) {
       console.error('Error reading file:', err);
@@ -43,7 +48,7 @@ const storage = {
    */
   async delete(filePath) {
     try {
-      const fullPath = path.join(__dirname, '../tmp', filePath);
+      const fullPath = path.join(config.tmpDir, filePath);
 
       // Check if the file exists before attempting to delete
       if (fs.existsSync(fullPath)) {
@@ -64,7 +69,7 @@ const storage = {
    */
   async exists(filePath) {
     try {
-      const fullPath = path.join(__dirname, '../tmp', filePath);
+      const fullPath = path.join(config.tmpDir, filePath);
       return fs.existsSync(fullPath);
     } catch (err) {
       console.error('Error checking file existence:', err);

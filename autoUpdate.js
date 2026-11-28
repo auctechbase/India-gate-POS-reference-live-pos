@@ -113,7 +113,13 @@ function setupAutoUpdates(getMainWindow) {
     function install() {
         if (status.state !== 'ready') return false;
         log.info('update', `Installing version ${status.version} now (Update now pressed)`);
-        setImmediate(() => autoUpdater.quitAndInstall(true, true));
+        try {
+            require('./updatingWindow').showUpdatingWindow({ port: require('./backend/config').port, version: status.version });
+        } catch (error) {
+            log.warn('update', 'Could not show the "Updating" window', { error: error.message });
+        }
+        // A moment for the window to appear before the POS closes.
+        setTimeout(() => autoUpdater.quitAndInstall(true, true), 1500);
         return true;
     }
 

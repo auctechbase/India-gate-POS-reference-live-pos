@@ -202,9 +202,19 @@ router.post(`/z-report`, fetchuser, async (req, res) => {
     }
 })
 
+// In the installed app the code is packed in app.asar. PhantomJS is a real program, so it and the
+// script it runs are unpacked (package.json > build.asarUnpack) to app.asar.unpacked: point
+// html-pdf there, as it would otherwise try to start them from inside the archive.
+const unpacked = (p) => p.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
+const pdfOptions = () => ({
+    format: 'A4',
+    phantomPath: unpacked(require('phantomjs-prebuilt').path),
+    script: unpacked(require('path').join(require('path').dirname(require.resolve('html-pdf/lib/pdf.js')), 'scripts', 'pdf_a4_portrait.js')),
+});
+
 function createPdfBuffer(html) {
     return new Promise((resolve, reject) => {
-        pdf.create(html, { format: 'A4' }).toBuffer((err, buffer) => (err ? reject(err) : resolve(buffer)));
+        pdf.create(html, pdfOptions()).toBuffer((err, buffer) => (err ? reject(err) : resolve(buffer)));
     });
 }
 

@@ -48,7 +48,15 @@
       }
     ],
     "artifactName": "India-Gate-POS-Setup.${ext}",
-    "asar": false,
+    "asar": true,
+    "asarUnpack": [
+      "backend/node_modules/sqlite3/**",
+      "backend/node_modules/bcrypt/**",
+      "backend/node_modules/sharp/**",
+      "backend/node_modules/@img/**",
+      "backend/node_modules/phantomjs-prebuilt/**",
+      "backend/node_modules/html-pdf/**"
+    ],
     "directories": {
       "output": "dist"
     },
@@ -62,7 +70,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
+      "createDesktopShortcut": "always",
       "shortcutName": "India Gate POS"
     },
     "extraResources": [
