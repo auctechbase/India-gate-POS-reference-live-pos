@@ -227,20 +227,21 @@ function OfferHero({ offer, index, count, money, categories }) {
         return price > 0 && !weighed ? money(price) : null;
     };
     return (
-        <section className="cd-body cd-offer cd-fade" key={offer.id}>
-            <div className="cd-offer-top">
-                <span className="cd-tag cd-tag--hot">Today's offer</span>
-                {count > 1 ? (
-                    <span className="cd-dots" aria-label={`Offer ${index + 1} of ${count}`}>
-                        {Array.from({ length: count }, (_, i) => <i key={i} className={i === index ? 'on' : ''} />)}
-                    </span>
-                ) : null}
+        <section className={`cd-body cd-offer cd-fade${products.length ? '' : ' cd-offer--text'}`} key={offer.id}>
+            <div className="cd-offer-text">
+                <div className="cd-offer-top">
+                    <span className="cd-tag cd-tag--hot">Today's offer</span>
+                    {count > 1 ? (
+                        <span className="cd-dots" aria-label={`Offer ${index + 1} of ${count}`}>
+                            {Array.from({ length: count }, (_, i) => <i key={i} className={i === index ? 'on' : ''} />)}
+                        </span>
+                    ) : null}
+                </div>
+                <h1 className="cd-headline">{offer.headline}</h1>
+                <div className="cd-offer-rule" aria-hidden="true" />
+                <p className="cd-offer-name">{offer.name}</p>
+                {offer.ends_on ? <p className="cd-offer-until">Until {shortDate(offer.ends_on)}</p> : null}
             </div>
-            <h1 className="cd-headline">{offer.headline}</h1>
-            <p className="cd-offer-name">
-                {offer.name}
-                {offer.ends_on ? <span> · until {shortDate(offer.ends_on)}</span> : null}
-            </p>
             {products.length ? (
                 <div className={`cd-products${products.length > 3 ? ' cd-rows-2' : ''}`} data-count={Math.min(products.length, 3)}>
                     {products.map((p) => {
