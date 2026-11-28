@@ -58,7 +58,8 @@ export default function UpdateBar() {
                 </div>
             )}
             <div className="update-version">
-                Version {current}
+                {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                {' · '}Version {current}
                 {state === 'latest' && <span> · up to date</span>}
                 {state === 'error' && <span title={error}> · could not check (no internet?)</span>}
                 {(state === 'idle' || state === 'latest' || state === 'error') && (
