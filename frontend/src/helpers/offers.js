@@ -205,6 +205,7 @@ export function displayContent({ items = [], discounts, offers, currency, select
             discount,
             offers: discount ? lineOfferNames(discounts, item, i) : [],
             isReturn: Boolean(item.return),
+            image: isQuick(item) ? null : item.image || null, // shown next to the item on the customer display
         };
     });
     const gross = round2(lines.reduce((s, l) => s + l.gross, 0));

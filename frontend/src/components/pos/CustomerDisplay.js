@@ -2,7 +2,6 @@ import axios from 'axios';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import logo from '../../asset/images/logo.png';
-import placeholder from '../../asset/images/default.png';
 import { dealHost } from '../../helpers/utils';
 import { chargedPrice, shortDate } from '../../helpers/offers';
 import './CustomerDisplay.css';
@@ -10,20 +9,23 @@ import './CustomerDisplay.css';
 // The screen facing the customer (second monitor, opened by main.js at /#/pos/customer).
 // It follows the till: the till sends { display: <content> } on every cart change (see
 // displayContent / paidContent in helpers/offers.js), which main.js forwards here.
-//   - selling: the items, what the offers take off, the total and "add 1 more" hints
+//   - selling: the items with their pictures, what the offers take off, the total, "add 1 more" hints
 //   - paid:    paid, change and savings, for a few seconds
-//   - idle:    today's offers marked "show on the customer screen", taking turns
+//   - idle:    today's offers marked "show on the customer screen", else a showcase of products
 
 const SHOP = {
     name: 'India Gate',
     street: 'Hobbemaplein 50',
     city: '2526 JB Den Haag',
     phone: '070-3563062',
+    tagline: 'Fresh groceries, spices & more',
     thanks: 'Thank you! Visit again!',
 };
 
 const ROTATE_MS = 8000; // next offer
+const SHOWCASE_MS = 6000; // next featured product
 const REFRESH_MS = 60000; // reload the offers
+const SHOWCASE_REFRESH_MS = 10 * 60000; // a new random set of products
 const PAID_MS = 10000; // "paid" stays this long, unless the next customer starts
 
 // Items sold by weight get their price at the till, so their shelf price is not shown.
@@ -79,9 +81,26 @@ function useScreenOffers() {
     return { offers, categories };
 }
 
-const showPlaceholder = (e) => {
-    if (!e.currentTarget.src.endsWith(placeholder)) e.currentTarget.src = placeholder;
-};
+/** A random set of products with a picture, for the idle screen (GET offers/showcase). */
+function useShowcase() {
+    const [products, setProducts] = useState([]);
+    useEffect(() => {
+        const load = () => axios.get('offers/showcase').then(({ data }) => setProducts(data.products || [])).catch(() => {});
+        load();
+        const timer = setInterval(load, SHOWCASE_REFRESH_MS);
+        return () => clearInterval(timer);
+    }, []);
+    return products;
+}
+
+function useClock() {
+    const [now, setNow] = useState(() => new Date());
+    useEffect(() => {
+        const timer = setInterval(() => setNow(new Date()), 15000);
+        return () => clearInterval(timer);
+    }, []);
+    return now;
+}
 
 const quantityText = (q, unit) => {
     if (unit) {
@@ -91,22 +110,111 @@ const quantityText = (q, unit) => {
     return Number.isInteger(q) ? String(q) : q.toFixed(2);
 };
 
-function Brand({ big = false }) {
+const greeting = (date) => {
+    const h = date.getHours();
+    return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+};
+
+/** A product's picture, or its first letter on a coloured tile when it has none (or it fails). */
+function ProductImage({ image, name, className }) {
+    const [failed, setFailed] = useState(false);
+    useEffect(() => setFailed(false), [image]);
+    if (!image || failed) {
+        const letter = String(name || '?').trim().charAt(0).toUpperCase() || '?';
+        const hue = [...String(name || '')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 40);
+        return (
+            <span
+                className={`${className} cd-initial`}
+                style={{ background: `linear-gradient(135deg, hsl(${hue}, 55%, 52%), hsl(${(hue + 30) % 360}, 60%, 38%))` }}
+                aria-hidden="true"
+            >
+                {letter}
+            </span>
+        );
+    }
+    return <img className={className} src={dealHost(image)} alt="" onError={() => setFailed(true)} />;
+}
+
+/** Logo, greeting and the time: the top of the idle and paid screens. */
+function Header() {
+    const now = useClock();
     return (
-        <aside className="cd-side cd-brand">
-            <img className={big ? 'cd-brand-logo cd-brand-logo--big' : 'cd-brand-logo'} src={logo} alt={SHOP.name} />
-            <div className="cd-welcome">
-                <span>Welcome to</span>
+        <header className="cd-header">
+            <img className="cd-header-logo" src={logo} alt={SHOP.name} />
+            <div className="cd-header-welcome">
+                <span>{greeting(now)}, welcome to</span>
                 <strong>{SHOP.name}</strong>
             </div>
-            <div className="cd-rule" aria-hidden="true" />
-            <p className="cd-address">
-                {SHOP.street}
-                <br />
-                {SHOP.city}
-            </p>
-            <p className="cd-phone">☎ {SHOP.phone}</p>
-        </aside>
+            <div className="cd-clock">
+                <strong>{now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong>
+                <span>{now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            </div>
+        </header>
+    );
+}
+
+/** Address and phone on a navy band: the bottom of the idle and paid screens. */
+function Ribbon() {
+    return (
+        <footer className="cd-ribbon">
+            <span className="cd-ribbon-tag">{SHOP.tagline}</span>
+            <span className="cd-ribbon-dot" aria-hidden="true">✦</span>
+            <span>
+                {SHOP.street}, {SHOP.city}
+            </span>
+            <span className="cd-ribbon-dot" aria-hidden="true">✦</span>
+            <span>☎ {SHOP.phone}</span>
+        </footer>
+    );
+}
+
+/** Idle without offers: one big featured product and the next ones beside it, taking turns. */
+function Showcase({ products, money }) {
+    const [index, setIndex] = useState(0);
+    useEffect(() => {
+        if (products.length < 2) return undefined;
+        const timer = setInterval(() => setIndex((i) => (i + 1) % products.length), SHOWCASE_MS);
+        return () => clearInterval(timer);
+    }, [products.length]);
+
+    if (!products.length) {
+        return (
+            <section className="cd-body cd-welcome-screen cd-fade">
+                <img className="cd-welcome-logo" src={logo} alt={SHOP.name} />
+                <p className="cd-welcome-line">{SHOP.tagline}</p>
+            </section>
+        );
+    }
+    const at = (offset) => products[(index + offset) % products.length];
+    const featured = at(0);
+    const next = Array.from({ length: Math.min(6, products.length - 1) }, (_, i) => at(i + 1));
+
+    return (
+        <section className="cd-body cd-showcase">
+            <div className="cd-feature" key={featured.id}>
+                <span className="cd-tag">In our shop</span>
+                <div className="cd-feature-photo">
+                    <ProductImage className="cd-feature-img" image={featured.image} name={featured.name} />
+                </div>
+                <div className="cd-feature-text">
+                    <h1>{featured.name}</h1>
+                    <span className="cd-price-tag">{money(chargedPrice(featured.price))}</span>
+                </div>
+            </div>
+            {next.length ? (
+                <div className="cd-shelf">
+                    {next.map((p, i) => (
+                        <figure key={`${p.id}-${index}`} className="cd-shelf-item" style={{ animationDelay: `${i * 70}ms` }}>
+                            <ProductImage className="cd-shelf-img" image={p.image} name={p.name} />
+                            <figcaption>
+                                <span>{p.name}</span>
+                                <b>{money(chargedPrice(p.price))}</b>
+                            </figcaption>
+                        </figure>
+                    ))}
+                </div>
+            ) : null}
+        </section>
     );
 }
 
@@ -119,9 +227,9 @@ function OfferHero({ offer, index, count, money, categories }) {
         return price > 0 && !weighed ? money(price) : null;
     };
     return (
-        <section className="cd-main cd-offer cd-fade" key={offer.id}>
+        <section className="cd-body cd-offer cd-fade" key={offer.id}>
             <div className="cd-offer-top">
-                <span className="cd-tag">Today's offer</span>
+                <span className="cd-tag cd-tag--hot">Today's offer</span>
                 {count > 1 ? (
                     <span className="cd-dots" aria-label={`Offer ${index + 1} of ${count}`}>
                         {Array.from({ length: count }, (_, i) => <i key={i} className={i === index ? 'on' : ''} />)}
@@ -139,7 +247,7 @@ function OfferHero({ offer, index, count, money, categories }) {
                         const price = priceOf(p);
                         return (
                             <figure key={p.id} className="cd-product">
-                                <img src={p.image ? dealHost(p.image) : placeholder} alt="" onError={showPlaceholder} />
+                                <ProductImage className="cd-product-img" image={p.image} name={p.name} />
                                 <figcaption>
                                     <span className="cd-product-name">{p.name}</span>
                                     {price ? <b>{price}</b> : null}
@@ -153,16 +261,7 @@ function OfferHero({ offer, index, count, money, categories }) {
     );
 }
 
-function Welcome() {
-    return (
-        <section className="cd-main cd-welcome-screen cd-fade">
-            <img className="cd-welcome-logo" src={logo} alt={SHOP.name} />
-            <p className="cd-welcome-line">Fresh groceries, spices &amp; more</p>
-        </section>
-    );
-}
-
-function SaleLines({ content, money }) {
+function SaleLines({ content, money, itemCount }) {
     const rows = useRef(new Map());
 
     // The newest item stays in view on long receipts.
@@ -172,8 +271,13 @@ function SaleLines({ content, money }) {
     }, [content.newestKey, content.lines.length]);
 
     return (
-        <section className="cd-main cd-sale">
-            <h2 className="cd-heading">Your items</h2>
+        <section className="cd-sale">
+            <div className="cd-sale-head">
+                <h2>Your items</h2>
+                <span className="cd-count">
+                    {quantityText(itemCount)} {itemCount === 1 ? 'item' : 'items'}
+                </span>
+            </div>
             <ul className="cd-lines">
                 {content.lines.map((l) => (
                     <li
@@ -184,26 +288,23 @@ function SaleLines({ content, money }) {
                         }}
                         className={`cd-line${l.key === content.newestKey ? ' is-newest' : ''}${l.isReturn ? ' is-return' : ''}`}
                     >
-                        <div className="cd-line-main">
+                        <ProductImage className="cd-thumb" image={l.image} name={l.name} />
+                        <div className="cd-line-text">
                             <span className="cd-line-name">
-                                {l.unit ? null : `${quantityText(l.quantity)} × `}
                                 {l.name}
                                 {l.isReturn ? <em className="cd-return">Return</em> : null}
                             </span>
-                            <b>{money(l.gross)}</b>
-                        </div>
-                        {l.unit || l.quantity !== 1 ? (
-                            <div className="cd-line-sub">
+                            <span className="cd-line-sub">
                                 {quantityText(l.quantity, l.unit)} × {money(l.unitPrice)}
                                 {l.unit ? ` / ${l.unit}` : ''}
-                            </div>
-                        ) : null}
-                        {l.discount ? (
-                            <div className="cd-line-offer">
-                                <span>🏷 {l.offers.join(', ') || 'Offer'}</span>
-                                <b>{money(-l.discount)}</b>
-                            </div>
-                        ) : null}
+                            </span>
+                            {l.discount ? (
+                                <span className="cd-line-offer">
+                                    🏷 {l.offers.join(', ') || 'Offer'} <b>{money(-l.discount)}</b>
+                                </span>
+                            ) : null}
+                        </div>
+                        <b className="cd-line-price">{money(l.gross)}</b>
                     </li>
                 ))}
             </ul>
@@ -212,15 +313,14 @@ function SaleLines({ content, money }) {
 }
 
 function SaleTotals({ content, money }) {
-    const items = content.lines.reduce((n, l) => n + (l.isReturn ? 0 : l.unit ? 1 : l.quantity), 0);
     return (
-        <aside className="cd-side cd-totals">
-            <div className="cd-total-box">
-                <span>Total</span>
-                <strong>{money(content.total)}</strong>
-                <small>
-                    {quantityText(items)} {items === 1 ? 'item' : 'items'}
-                </small>
+        <aside className="cd-rail">
+            <div className="cd-rail-logo">
+                <img src={logo} alt={SHOP.name} />
+            </div>
+            <div className="cd-total">
+                <span>Total to pay</span>
+                <strong key={content.total}>{money(content.total)}</strong>
             </div>
             {content.discount > 0 ? <div className="cd-saving">You save {money(content.discount)}</div> : null}
             {content.hint ? (
@@ -232,7 +332,7 @@ function SaleTotals({ content, money }) {
                     </div>
                 </div>
             ) : null}
-            <img className="cd-side-logo" src={logo} alt={SHOP.name} />
+            <p className="cd-rail-thanks">Thank you for shopping at {SHOP.name}</p>
         </aside>
     );
 }
@@ -240,13 +340,17 @@ function SaleTotals({ content, money }) {
 function Paid({ content, money }) {
     const refund = content.total < 0;
     return (
-        <section className="cd-main cd-paid cd-fade">
-            <div className="cd-check" aria-hidden="true">✓</div>
+        <section className="cd-body cd-paid cd-fade">
+            <svg className="cd-check" viewBox="0 0 52 52" aria-hidden="true">
+                <circle className="cd-check-ring" cx="26" cy="26" r="24" />
+                <path className="cd-check-mark" d="M15 27 l7 7 l15 -16" />
+            </svg>
             <h1>{refund ? `Refunded ${money(-content.total)}` : `Paid ${money(content.paid || content.total)}`}</h1>
             {content.change > 0 ? (
-                <p className="cd-change">
-                    Your change <b>{money(content.change)}</b>
-                </p>
+                <div className="cd-change">
+                    <span>Your change</span>
+                    <strong>{money(content.change)}</strong>
+                </div>
             ) : null}
             {content.saved > 0 ? <p className="cd-saving">You saved {money(content.saved)} with our offers</p> : null}
             <p className="cd-bye">{SHOP.thanks}</p>
@@ -257,6 +361,7 @@ function Paid({ content, money }) {
 export default function CustomerDisplay() {
     const screen = useTillScreen();
     const { offers, categories } = useScreenOffers();
+    const showcase = useShowcase();
     const { currency: shopCurrency } = useSelector((state) => state.auth);
     const [index, setIndex] = useState(0);
 
@@ -274,29 +379,26 @@ export default function CustomerDisplay() {
     );
     const offer = offers.length ? offers[index % offers.length] : null;
 
+    if (screen.kind === 'sale') {
+        const items = screen.content.lines.reduce((n, l) => n + (l.isReturn ? 0 : l.unit ? 1 : l.quantity), 0);
+        return (
+            <div className="cd cd--sale">
+                <SaleLines content={screen.content} money={money} itemCount={items} />
+                <SaleTotals content={screen.content} money={money} />
+            </div>
+        );
+    }
     return (
-        <div className="cd">
-            {screen.kind === 'sale' ? (
-                <>
-                    <SaleLines content={screen.content} money={money} />
-                    <SaleTotals content={screen.content} money={money} />
-                </>
-            ) : screen.kind === 'paid' ? (
-                <>
-                    <Paid content={screen.content} money={money} />
-                    <Brand />
-                </>
+        <div className={`cd cd--${screen.kind}`}>
+            <Header />
+            {screen.kind === 'paid' ? (
+                <Paid content={screen.content} money={money} />
             ) : offer ? (
-                <>
-                    <OfferHero offer={offer} index={index % offers.length} count={offers.length} money={money} categories={categories} />
-                    <Brand />
-                </>
+                <OfferHero offer={offer} index={index % offers.length} count={offers.length} money={money} categories={categories} />
             ) : (
-                <>
-                    <Welcome />
-                    <Brand big />
-                </>
+                <Showcase products={showcase} money={money} />
             )}
+            <Ribbon />
         </div>
     );
 }

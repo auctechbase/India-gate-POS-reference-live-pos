@@ -2,6 +2,10 @@ const router = require('express').Router();
 const fetchuser = require('../middlewares/loggedIn');
 const User = require('../models/User');
 const offers = require('../utils/offers');
+const fs = require('fs');
+const path = require('path');
+const config = require('../config');
+const Product = require('../models/Product');
 
 // Offers. The till and the customer display read today's offers (no login needed, like the
 // product list); only an admin can create, change or delete them.
@@ -41,6 +45,31 @@ const orEmpty = (fn, empty) => async (req, res) => {
 router.get('/active', orEmpty(async () => ({ offers: await offers.listActive() }), { offers: [] }));
 
 router.get('/customer-screen', orEmpty(async () => ({ offers: await offers.customerScreen() }), { offers: [] }));
+
+// The customer display's showcase while nobody is paying: a random handful of products that have
+// a picture (the file must exist, so the screen never shows a broken image) and a fixed shelf
+// price. Items priced at the till by weight (vegetables, sweets, paneer) are left out.
+const WEIGHED = ['vegetables', 'sweets'];
+router.get('/showcase', orEmpty(async () => {
+    const rows = await Product.query()
+        .leftJoin('product_categories as c', 'products.category_id', 'c.id')
+        .where('products.deleted', false)
+        .whereNotNull('products.image')
+        .where('products.image', '!=', '')
+        .whereRaw('CAST(products.price AS REAL) > 0')
+        .select('products.id', 'products.name', 'products.price', 'products.image', 'c.name as category')
+        .orderByRaw('RANDOM()')
+        .limit(60);
+    const products = rows
+        .filter((p) => !WEIGHED.includes(String(p.category || '').trim().toLowerCase()) && String(p.name).trim().toLowerCase() !== 'paneer')
+        .filter((p) => {
+            const file = path.resolve(config.tmpDir, String(p.image));
+            return file.startsWith(path.resolve(config.tmpDir)) && fs.existsSync(file);
+        })
+        .slice(0, 18)
+        .map(({ id, name, price, image }) => ({ id, name, price, image }));
+    return { products };
+}, { products: [] }));
 
 router.post('/apply', handle(async (req, res) => {
     let result;
